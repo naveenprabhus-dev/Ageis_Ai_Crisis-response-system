@@ -47,12 +47,23 @@ if os.path.exists(frontend_path):
 else:
     print("Frontend folder not found, skipping static mount")
 
-engine  = TaskEngine()
-brain   = AiBrain()
-camera  = CameraFeedSimulator()
+print("Loading TaskEngine...")
+engine = TaskEngine()
+
+print("Loading AiBrain...")
+brain = AiBrain()
+
+print("Loading Camera...")
+camera = CameraFeedSimulator()
+
+print("Loading Weather...")
 weather = WeatherModule()
-alerts  = AlertEngine()
-queue   = QueueEngine()
+
+print("Loading Alerts...")
+alerts = AlertEngine()
+
+print("Loading Queue...")
+queue = QueueEngine()
 
 
 # Global exception handler — returns JSON with full traceback
