@@ -11,8 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .task_engine   import TaskEngine
-from .ai_brain      import AiBrain
+from task_engine import TaskEngine
+from ai_brain import AiBrain
 from .camera_feed   import CameraFeedSimulator
 from .weather_module import WeatherModule
 from .alert_engine  import AlertEngine
