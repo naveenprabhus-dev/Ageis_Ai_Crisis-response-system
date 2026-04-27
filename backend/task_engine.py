@@ -8,7 +8,7 @@ import random
 from typing import Dict, List, Optional
 from collections import deque
 
-from .scenario_engine import scenario_engine
+from scenario_engine import scenario_engine
 
 FLOORS = 5 
 ROOMS_PER_FLOOR = 10

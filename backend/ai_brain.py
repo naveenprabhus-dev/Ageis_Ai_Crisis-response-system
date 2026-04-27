@@ -7,7 +7,7 @@ import random
 from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
-from .llm_engine import engine as llm_engine
+from llm_engine import engine as llm_engine
 
 try:
     from .lstm_fire_spread import LSTMFireSpread
@@ -17,9 +17,9 @@ except ImportError:
     from lstm_fire_spread import LSTMFireSpread
     from lstm_smoke_spread import LSTMSmokeSpread
     from lstm_evac_time import LSTMEvacTime
-from .gemma_service import gemma
-from .gemini_service import gemini
-from .scenario_engine import scenario_engine
+from gemma_service import gemma
+from gemini_service import gemini
+from scenario_engine import scenario_engine
 
 FLOORS = 5 # 0=Ground, 1-4=Guest Floors
 ROOMS_PER_FLOOR = 10

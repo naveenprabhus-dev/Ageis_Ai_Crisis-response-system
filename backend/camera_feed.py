@@ -147,7 +147,7 @@ class CameraFeedSimulator:
         """
         Runs Google Vision AI (PaliGemma) analysis of the camera frame.
         """
-        from .vision_ai_service import google_vision_ai
+        from vision_ai_service import google_vision_ai
         return google_vision_ai.analyze_frame(floor, detections)
 
     def _label_color(self, label: str) -> str:

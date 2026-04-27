@@ -39,9 +39,9 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
-# Mount frontend
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
-app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+# Mount frontend (always mount for local dev)
+if os.path.exists(frontend_path):
+    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
 engine  = TaskEngine()
 brain   = AiBrain()
@@ -49,6 +49,21 @@ camera  = CameraFeedSimulator()
 weather = WeatherModule()
 alerts  = AlertEngine()
 queue   = QueueEngine()
+
+
+# Global exception handler — returns JSON with full traceback
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+import traceback as tb
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    err_trace = tb.format_exc()
+    print(f"[500 ERROR] {request.url}\n{err_trace}")
+    return JSONResponse(
+        status_code=500,
+        content={"error": str(exc), "type": type(exc).__name__, "trace": err_trace[-500:]}
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -71,7 +86,11 @@ class ConnectionManager:
         except ValueError: pass
 
     async def broadcast(self, pool: list[WebSocket], msg: dict):
-        text = json.dumps(msg)
+        try:
+            text = json.dumps(msg, default=str)
+        except Exception as e:
+            print(f"[broadcast] JSON serialize error: {e}")
+            return
         dead = []
         for ws in pool:
             try:   await ws.send_text(text)
@@ -183,7 +202,7 @@ async def ai_brain_cycle():
 
 @app.on_event("startup")
 async def startup():
-    #asyncio.create_task(ai_brain_cycle())
+    asyncio.create_task(ai_brain_cycle())
     print("[Aegis AI] Backend online — AI brain cycle started.")
 
 
@@ -337,18 +356,25 @@ async def simulate_crisis(crisis: CrisisModel):
 # ──────────────────────────────────────────────────────────────────────
 @app.get("/ai/assessment")
 async def get_assessment():
-    wx_data     = await weather.get_threat()
-    camera_data = camera.get_all_feeds(engine.people_tracking)
-    hotel_data  = engine.get_full_hotel()
-    fire_zones  = engine.get_fire_zones()
-    camera.set_crisis_zones(fire_zones)
-    return brain.analyze(
-        vision_data  = camera_data,
-        hotel_data   = hotel_data,
-        weather_data = wx_data,
-        staff_data   = {"staff_locations": manager.staff_locations},
-        sos_events   = engine.get_recent_sos(),
-    )
+    try:
+        wx_data     = await weather.get_threat()
+        camera_data = camera.get_all_feeds(engine.people_tracking)
+        hotel_data  = engine.get_full_hotel()
+        fire_zones  = engine.get_fire_zones()
+        camera.set_crisis_zones(fire_zones)
+        result = brain.analyze(
+            vision_data  = camera_data,
+            hotel_data   = hotel_data,
+            weather_data = wx_data,
+            staff_data   = {"staff_locations": manager.staff_locations},
+            sos_events   = engine.get_recent_sos(),
+        )
+        import json
+        return JSONResponse(content=json.loads(json.dumps(result, default=str)))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.get("/ai/evacuation_routes/{floor}")
 async def get_evac_routes(floor: int):

@@ -1,5 +1,5 @@
 from typing import Dict, Tuple
-from .gemma_service import gemma
+from gemma_service import gemma
 
 class LLMDecisionEngine:
     """
