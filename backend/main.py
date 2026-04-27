@@ -13,12 +13,12 @@ from pydantic import BaseModel
 
 from task_engine import TaskEngine
 from ai_brain import AiBrain
-from .camera_feed   import CameraFeedSimulator
-from .weather_module import WeatherModule
-from .alert_engine  import AlertEngine
-from .queue_engine  import QueueEngine
-from .gemma_service import gemma
-from .scenario_engine import scenario_engine
+from camera_feed import CameraFeedSimulator
+from weather_module import WeatherModule
+from alert_engine import AlertEngine
+from queue_engine import QueueEngine
+from gemma_service import gemma
+from scenario_engine import scenario_engine
 
 class GuestSosRequest(BaseModel):
     floor: int
