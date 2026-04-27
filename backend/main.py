@@ -183,7 +183,7 @@ async def ai_brain_cycle():
 
 @app.on_event("startup")
 async def startup():
-    asyncio.create_task(ai_brain_cycle())
+    #asyncio.create_task(ai_brain_cycle())
     print("[Aegis AI] Backend online — AI brain cycle started.")
 
 
