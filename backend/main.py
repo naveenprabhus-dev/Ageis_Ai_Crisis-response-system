@@ -39,9 +39,13 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
-# Mount frontend (always mount for local dev)
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
+
 if os.path.exists(frontend_path):
+    from fastapi.staticfiles import StaticFiles
     app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+else:
+    print("Frontend folder not found, skipping static mount")
 
 engine  = TaskEngine()
 brain   = AiBrain()
