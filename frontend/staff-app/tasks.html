@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis AI | Tactical Rescue Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #020617;
+            --card-bg: rgba(15, 23, 42, 0.8);
+            --accent-primary: #6366f1;
+            --accent-secondary: #06b6d4;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #22c55e;
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-deep);
+            color: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.05) 0%, transparent 40%);
+        }
+
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .tactical-border {
+            border-left: 4px solid var(--accent-primary);
+        }
+
+        .pulse-red {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        #map-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #010409;
+            border-radius: 1rem;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        
+        .ai-bubble {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+            border-left: 2px solid var(--accent-primary);
+        }
+
+        .hazard-alert {
+            animation: slide-in 0.3s ease-out;
+        }
+
+        @keyframes slide-in {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.5);
+        }
+
+        .mic-pulse-blue {
+            animation: mic-pulse-blue 1.5s infinite;
+        }
+        @keyframes mic-pulse-blue {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 30px rgba(99, 102, 241, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+    </style>
+</head>
+    <!-- RESCUE POPUP -->
+    <div id="rescue-popup" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] glass-panel p-8 flex flex-col items-center gap-4 border-success/50 shadow-[0_0_50px_rgba(34,197,94,0.3)]">
+        <div class="w-16 h-16 bg-success/20 rounded-full flex items-center justify-center text-success text-3xl animate-bounce">✓</div>
+        <h2 class="text-2xl font-black uppercase">Rescue Completed</h2>
+        <p class="text-slate-400 font-bold text-center">Neural link synced. Standing by for next assignment.</p>
+    </div>
+
+    <!-- REACHED CONFIRMATION MODAL -->
+    <div id="reached-modal" class="hidden fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+        <div class="glass-panel p-8 max-w-sm w-full border-amber-500/30 flex flex-col items-center text-center gap-6">
+            <div class="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-500 text-4xl">📍</div>
+            <div>
+                <h3 class="text-2xl font-black uppercase mb-2">Confirm Arrival?</h3>
+                <p class="text-slate-400 text-sm font-semibold">Have you physically reached the guest and established contact?</p>
+            </div>
+            <div class="flex gap-4 w-full">
+                <button onclick="closeReachedModal()" class="flex-1 py-3 rounded-xl bg-slate-800 font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-colors">Cancel</button>
+                <button onclick="executeConfirmReached()" class="flex-1 py-3 rounded-xl bg-amber-500 text-black font-black uppercase text-xs tracking-widest hover:bg-amber-400 transition-all">Yes, Confirmed</button>
+            </div>
+        </div>
+    </div>
+
+    <body class="flex flex-col h-screen p-4 md:p-6 gap-6">
+
+    <!-- TOP HEADER -->
+    <header class="flex justify-between items-center shrink-0 h-16">
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-500/20 rotate-3">
+                    <span class="-rotate-3">AE</span>
+                </div>
+                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 id="staff-id-display" class="text-xl font-black tracking-tight text-white">S-04 OPERATOR</h1>
+                    <span class="status-badge bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TACTICAL READY</span>
+                </div>
+                <p id="connection-status" class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Awaiting Neural Link...</p>
+            </div>
+        </div>
+
+        <div class="flex gap-4 items-center">
+            <div class="text-right hidden sm:block">
+                <p class="text-[10px] text-slate-500 uppercase font-bold">Risk Assessment</p>
+                <p id="global-risk-level" class="text-sm font-black text-success">NOMINAL</p>
+            </div>
+            <div class="h-10 w-px bg-slate-800"></div>
+            <button onclick="toggleVoice()" id="voice-toggle" class="p-3 glass-panel hover:bg-slate-800 transition-colors">
+                <svg id="voice-icon" class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col lg:flex-row gap-6 min-h-0">
+        
+        <!-- LEFT: ACTIVE MISSION -->
+        <div class="flex-grow flex flex-col gap-6 min-w-0">
+            
+            <!-- CURRENT TASK CARD -->
+            <div id="active-mission-card" class="glass-panel p-6 tactical-border flex flex-col gap-4 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 4.5l7.5 12h-15L12 6.5z"/></svg>
+                </div>
+
+                <div class="flex justify-between items-start z-10">
+                    <div>
+                        <div id="task-urgency-pill" class="status-badge bg-slate-800 text-slate-400 mb-2 inline-block">NO ACTIVE MISSION</div>
+                        <h2 id="task-location" class="text-5xl font-black tracking-tighter">--</h2>
+                        <p id="task-subtitle" class="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">Awaiting AI Deployment</p>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <div class="text-right">
+                            <p class="text-[10px] text-slate-500 uppercase font-bold">Staff ETA</p>
+                            <p id="staff-eta" class="text-2xl font-black text-indigo-400">--</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-slate-500 uppercase font-bold">Fire ETA</p>
+                            <p id="fire-eta" class="text-2xl font-black text-danger">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-4 mt-2 z-10">
+                    <div class="glass-panel px-4 py-2 flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                        <div>
+                            <p class="text-[8px] text-slate-500 uppercase font-black">Guest</p>
+                            <p id="guest-name" class="text-xs font-bold">Searching...</p>
+                        </div>
+                    </div>
+                    <div class="glass-panel px-4 py-2 flex items-center gap-3">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 11.37 9.188 16.503 5 20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <div>
+                            <p class="text-[8px] text-slate-500 uppercase font-black">Language</p>
+                            <p id="guest-lang" class="text-xs font-bold">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mission-controls" class="mt-4 flex flex-col gap-3 z-10 hidden">
+                    <div id="reached-step" class="flex gap-3">
+                        <button onclick="confirmReached()" class="flex-grow bg-amber-500 hover:bg-amber-400 py-4 rounded-xl font-black uppercase text-sm tracking-widest text-black transition-all">Reached Guest?</button>
+                    </div>
+                    <div id="complete-step" class="flex gap-3 hidden">
+                        <button onclick="completeMission()" class="flex-grow btn-primary py-4 rounded-xl font-black uppercase text-sm tracking-widest">Confirm Rescue & Exit</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TACTICAL MAP CONTAINER -->
+            <div class="flex-grow glass-panel p-4 flex flex-col min-h-0 relative">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Tactical Sector View</h3>
+                    <div class="flex gap-4">
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-danger"></div>
+                            <span class="text-[10px] font-bold text-slate-500">FIRE</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-slate-500"></div>
+                            <span class="text-[10px] font-bold text-slate-500">SMOKE</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
+                            <span class="text-[10px] font-bold text-slate-500">STAFF</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="map-wrapper" class="flex-grow relative min-h-0 bg-slate-950/50 rounded-xl overflow-hidden border border-slate-800">
+                    <canvas id="tactical-canvas"></canvas>
+                    
+                    <!-- FLOOR SELECTOR -->
+                    <div class="absolute bottom-4 left-4 flex flex-col gap-2">
+                        <div id="floor-indicator" class="glass-panel px-3 py-1 text-[10px] font-black text-indigo-400 text-center">F3</div>
+                    </div>
+
+                    <!-- OVERLAY ALERTS -->
+                    <div id="map-alert" class="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 border-danger/30 text-danger text-xs font-black hidden">
+                        HAZARD DETECTED ON ROUTE
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: AI & COMMS PANEL -->
+        <div class="w-full lg:w-96 shrink-0 flex flex-col gap-6 overflow-y-auto lg:overflow-visible">
+            
+            <!-- AI ASSISTANT PANEL -->
+            <div class="glass-panel p-6 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center text-indigo-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <h3 class="text-sm font-black uppercase tracking-widest">AI Tactical Link</h3>
+                </div>
+                
+                <div id="ai-insight-box" class="ai-bubble p-4 rounded-xl min-h-[100px]">
+                    <p id="ai-insight-text" class="text-sm leading-relaxed text-slate-300 italic">
+                        "Neural link established. Scanning sector for hazards..."
+                    </p>
+                </div>
+            </div>
+
+            <!-- HAZARD ALERTS -->
+            <div class="glass-panel p-6 flex flex-col gap-4 min-h-0 max-h-[300px] lg:max-h-none overflow-hidden">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Active Threats</h3>
+                <div id="hazard-list" class="space-y-3 overflow-y-auto pr-2">
+                    <p class="text-[10px] text-slate-600 font-bold uppercase text-center py-4">No critical threats detected</p>
+                </div>
+            </div>
+
+            <!-- GUEST COMMS -->
+            <div class="glass-panel p-6 flex flex-col gap-4 flex-grow relative min-h-[300px]">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Guest Comms Hub</h3>
+                <div id="chat-history" class="flex-grow overflow-y-auto space-y-3 pb-2 pr-2">
+                    <!-- Messages will be injected here -->
+                    <p class="text-[10px] text-slate-600 font-bold uppercase text-center mt-4">Awaiting Guest Connection...</p>
+                </div>
+                
+                <div class="mt-2 flex gap-2 items-center">
+                    <button id="staff-mic-btn" onclick="toggleStaffMic()" class="p-2 glass-panel hover:bg-indigo-600/20 transition-all border border-slate-700/50">
+                        <svg id="staff-mic-icon" class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+                    <input type="text" id="staff-msg-input" placeholder="Type or speak in English..." class="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendStaffMessage()">
+                    <button onclick="sendStaffMessage()" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-xs font-black uppercase transition-colors">Send</button>
+                </div>
+
+                <div class="mt-auto pt-4 border-t border-slate-800 flex justify-between items-center">
+                    <div class="flex -space-x-2">
+                        <div class="w-6 h-6 rounded-full bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-[8px] font-black">S1</div>
+                        <div class="w-6 h-6 rounded-full bg-cyan-600 border-2 border-slate-900 flex items-center justify-center text-[8px] font-black">S2</div>
+                        <div class="w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[8px] font-black text-slate-500">+1</div>
+                    </div>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase">3 Units Assigned</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- VOICE INPUT MODAL (STAFF) -->
+    <div id="staff-voice-modal" class="hidden fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-2xl flex flex-col items-center justify-center p-6 transition-all duration-500">
+        <div class="w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center mic-pulse-blue mb-8 border-4 border-white/10">
+            <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        </div>
+        <div class="text-center max-w-md w-full">
+            <p class="text-indigo-400 font-black uppercase tracking-[0.3em] mb-4 text-xs animate-pulse">Tactical Voice Input Active</p>
+            <div class="glass-panel p-6 rounded-3xl border border-white/10 mb-8 min-h-[100px] flex items-center justify-center">
+                <p id="staff-interim-text" class="text-xl font-bold text-white italic opacity-80">Listening for instructions...</p>
+            </div>
+            <button onclick="toggleStaffMic()" class="px-10 py-4 bg-white/5 hover:bg-white/10 rounded-full font-black uppercase tracking-widest text-xs transition-all border border-white/10 text-white">Cancel / Stop</button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const STAFF_ID = urlParams.get('id');
+        
+        if (!STAFF_ID) {
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('staff-id-display').innerText = STAFF_ID + ' OPERATOR';
+        
+        let ws;
+        let currentTask = null;
+        let currentAssessment = null;
+        let voiceEnabled = false;
+        let lastVoiceAlert = "";
+        let staffRecognition;
+        let isStaffListening = false;
+        
+        const canvas = document.getElementById('tactical-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- MAP SYSTEM ---
+        const ROOMS_PER_FLOOR = 10;
+        const GRID_W = 1000;
+        const GRID_H = 600;
+        let scale = 1;
+
+        function initCanvas() {
+            const wrapper = document.getElementById('map-wrapper');
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+            scale = Math.min(canvas.width / GRID_W, canvas.height / GRID_H) * 0.9;
+        }
+
+        window.addEventListener('resize', initCanvas);
+        initCanvas();
+
+        function drawMap() {
+            requestAnimationFrame(drawMap);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!currentAssessment) return;
+
+            const offsetX = (canvas.width - GRID_W * scale) / 2;
+            const offsetY = (canvas.height - GRID_H * scale) / 2;
+            
+            const floorNum = currentTask ? currentTask.floor : 3;
+            document.getElementById('floor-indicator').innerText = 'F' + floorNum;
+
+            // Layout Constants
+            const padX = 100 * scale;
+            const padY = 100 * scale;
+            const floorW = GRID_W * scale - 2 * padX;
+            const floorH = GRID_H * scale - 2 * padY;
+            const corridorH = floorH * 0.25;
+            const roomW = floorW / 5;
+            const roomH = (floorH - corridorH) / 2;
+
+            // Draw Corridor
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+            ctx.fillRect(offsetX + padX, offsetY + padY + roomH, floorW, corridorH);
+
+            // Draw Rooms
+            const fireZones = currentAssessment.assessment.fire_spread.actual_fire_zones || [];
+            const blockedCorridors = currentAssessment.assessment.smoke_spread.blocked_corridors || [];
+            const fireEtas = currentAssessment.assessment.fire_spread.etas || {};
+
+            for (let i = 0; i < 10; i++) {
+                const isTop = i < 5;
+                const idx = i % 5;
+                const rid = `${floorNum}${(i + 1).toString().padStart(2, '0')}`;
+                
+                const rx = offsetX + padX + idx * roomW;
+                const ry = isTop ? offsetY + padY : offsetY + padY + roomH + corridorH;
+                const rw = roomW - 10 * scale;
+                const rh = roomH - 10 * scale;
+
+                // Room Background
+                let roomColor = 'rgba(15, 23, 42, 0.8)';
+                let borderColor = 'rgba(99, 102, 241, 0.2)';
+                
+                if (fireZones.includes(rid)) {
+                    roomColor = 'rgba(239, 68, 68, 0.3)';
+                    borderColor = 'rgba(239, 68, 68, 0.8)';
+                    const p = (Date.now() % 1000) / 1000;
+                    ctx.shadowBlur = 20 * p;
+                    ctx.shadowColor = 'rgba(239, 68, 68, 0.8)';
+                } else if (fireEtas[rid] !== undefined && fireEtas[rid] < 5) {
+                    roomColor = 'rgba(249, 115, 22, 0.2)';
+                    borderColor = 'rgba(249, 115, 22, 0.6)';
+                } else if (blockedCorridors.includes(rid)) {
+                    roomColor = 'rgba(148, 163, 184, 0.2)';
+                    borderColor = 'rgba(148, 163, 184, 0.4)';
+                }
+
+                ctx.fillStyle = roomColor;
+                ctx.strokeStyle = borderColor;
+                ctx.lineWidth = 2 * scale;
+                ctx.beginPath();
+                ctx.roundRect(rx + 5 * scale, ry + 5 * scale, rw, rh, 8 * scale);
+                ctx.fill();
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Room Number
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.font = `900 ${16 * scale}px Outfit`;
+                ctx.textAlign = 'center';
+                ctx.fillText(rid, rx + roomW / 2, ry + roomH / 2);
+
+                // Highlight Target
+                if (currentTask && currentTask.room === rid) {
+                    ctx.strokeStyle = '#6366f1';
+                    ctx.lineWidth = 4 * scale;
+                    ctx.setLineDash([10 * scale, 10 * scale]);
+                    ctx.beginPath();
+                    ctx.roundRect(rx, ry, roomW, roomH, 12 * scale);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // Draw Paths
+            if (currentAssessment.tactical_data && currentAssessment.tactical_data[STAFF_ID]) {
+                const tactical = currentAssessment.tactical_data[STAFF_ID];
+                drawTacticalPath(tactical.path_to_victim, '#6366f1', true);
+                drawTacticalPath(tactical.path_to_exit, '#22c55e', false);
+            }
+
+            // Draw Staff
+            const staffLoc = currentAssessment.assessment.staff_locations?.[STAFF_ID] || { room: "001" };
+            const selfPos = getRoomCenter(staffLoc.room);
+            drawStaffIcon(selfPos.x, selfPos.y + 20 * scale, STAFF_ID, true);
+            
+            // Draw Other Staff
+            const otherStaff = currentAssessment.assessment.staff_locations || {};
+            Object.keys(otherStaff).forEach(sid => {
+                if (sid !== STAFF_ID) {
+                    const loc = otherStaff[sid];
+                    if (loc.floor === floorNum) {
+                        const pos = getRoomCenter(loc.room);
+                        drawStaffIcon(pos.x, pos.y + 20 * scale, sid, false);
+                    }
+                }
+            });
+            // (Animation loop moved to top of function)
+        }
+
+        function getRoomCenter(rid) {
+            const offsetX = (canvas.width - GRID_W * scale) / 2;
+            const offsetY = (canvas.height - GRID_H * scale) / 2;
+            const padX = 100 * scale;
+            const padY = 100 * scale;
+            const floorW = GRID_W * scale - 2 * padX;
+            const floorH = GRID_H * scale - 2 * padY;
+            const corridorH = floorH * 0.25;
+            const roomW = floorW / 5;
+            const roomH = (floorH - corridorH) / 2;
+
+            // Handle non-room nodes like "Stairwell-1 \u2192 Exit" or "001"
+            let rNum = parseInt(rid.slice(-2));
+            if (isNaN(rNum) || rNum <= 0 || rNum > 10) {
+                // If it's an exit node (e.g. 1 or 10), place it at the far left or right of the corridor
+                if (rid.includes('10') || rid.includes('R') || rNum === 10) {
+                     return { x: offsetX + padX + floorW + 20 * scale, y: offsetY + padY + roomH + corridorH / 2 };
+                }
+                // Default to left exit
+                return { x: offsetX + padX - 20 * scale, y: offsetY + padY + roomH + corridorH / 2 };
+            }
+
+            const idx = (rNum - 1) % 5;
+            const isTop = rNum <= 5;
+            
+            return {
+                x: offsetX + padX + idx * roomW + roomW / 2,
+                y: isTop ? offsetY + padY + roomH / 2 : offsetY + padY + roomH + corridorH + roomH / 2
+            };
+        }
+
+        function drawTacticalPath(path, color, isDashed) {
+            if (!path || path.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 6 * scale;
+            if (isDashed) ctx.setLineDash([15 * scale, 15 * scale]);
+            
+            path.forEach((node, idx) => {
+                const pos = getRoomCenter(node);
+                if (idx === 0) ctx.moveTo(pos.x, pos.y);
+                else ctx.lineTo(pos.x, pos.y);
+            });
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawStaffIcon(x, y, id, isSelf) {
+            ctx.fillStyle = isSelf ? '#6366f1' : '#06b6d4';
+            ctx.beginPath();
+            ctx.arc(x, y, 12 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2 * scale;
+            ctx.stroke();
+            
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${8 * scale}px Outfit`;
+            ctx.textAlign = 'center';
+            ctx.fillText(id, x, y + 4 * scale);
+            ctx.textAlign = 'start';
+        }
+
+        // --- CORE LOGIC ---
+
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/staff`);
+
+            ws.onopen = () => {
+                document.getElementById('connection-status').innerText = 'Neural Link Active';
+                document.getElementById('connection-status').className = 'text-[10px] text-green-400 font-bold uppercase tracking-widest';
+                fetchTask();
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'AI_ASSESSMENT') {
+                    currentAssessment = data;
+                    updateTacticalUI(data);
+                } else if (data.type === 'GUEST_MESSAGE' && currentTask && data.room === currentTask.room) {
+                    appendChatMessage(data.translated_text, 'guest', data.original_text);
+                    voiceAlert("Guest says: " + data.translated_text);
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('connection-status').innerText = 'Neural Link Lost - Reconnecting...';
+                document.getElementById('connection-status').className = 'text-[10px] text-danger font-bold uppercase tracking-widest';
+                setTimeout(connectWS, 3000);
+            };
+        }
+
+        async function fetchTask() {
+            try {
+                const res = await fetch(`/staff/${STAFF_ID}/next_task`);
+                const data = await res.json();
+                if (data.id) {
+                    currentTask = data;
+                    renderTask(data);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function renderTask(task) {
+            document.getElementById('task-location').innerText = "ROOM " + task.room;
+            document.getElementById('task-subtitle').innerText = `Floor ${task.floor} • ${task.priority} Priority`;
+            document.getElementById('guest-name').innerText = task.guest;
+            document.getElementById('guest-lang').innerText = task.language;
+            document.getElementById('task-urgency-pill').innerText = "MISSION: ACTIVE";
+            document.getElementById('task-urgency-pill').className = "status-badge bg-danger/20 text-danger border border-danger/30";
+            document.getElementById('mission-controls').classList.remove('hidden');
+            document.getElementById('reached-step').classList.remove('hidden');
+            document.getElementById('complete-step').classList.add('hidden');
+        }
+
+        function updateTacticalUI(data) {
+            const assessment = data.assessment;
+            const tactical = data.tactical_data ? data.tactical_data[STAFF_ID] : null;
+
+            // Update Risk Score
+            const riskLevel = tactical ? tactical.risk_level : "NOMINAL";
+            const riskDisplay = document.getElementById('global-risk-level');
+            riskDisplay.innerText = riskLevel;
+            riskDisplay.className = `text-sm font-black ${riskLevel === 'CRITICAL' ? 'text-danger' : riskLevel === 'HIGH' ? 'text-warning' : 'text-success'}`;
+
+            // Update ETAs
+            if (tactical) {
+                document.getElementById('staff-eta').innerText = tactical.staff_eta + 'm';
+                document.getElementById('fire-eta').innerText = tactical.fire_eta + 'm';
+                
+                if (tactical.is_critical) {
+                    document.getElementById('task-urgency-pill').innerText = "URGENT: FIRE OVERTAKING";
+                    document.getElementById('active-mission-card').classList.add('pulse-red');
+                    voiceAlert("Urgent: Fire spread exceeds rescue velocity. Accelerate to Room " + currentTask.room);
+                } else {
+                    document.getElementById('active-mission-card').classList.remove('pulse-red');
+                }
+            }
+
+            // Update AI Insights
+            if (assessment.recommended_action) {
+                const insightText = document.getElementById('ai-insight-text');
+                const newInsight = assessment.recommended_action;
+                if (insightText.innerText !== newInsight) {
+                    insightText.innerText = newInsight;
+                    voiceAlert(newInsight);
+                }
+            }
+
+            // Update Hazard List
+            const hazardList = document.getElementById('hazard-list');
+            hazardList.innerHTML = '';
+            const fires = assessment.fire_spread.actual_fire_zones || [];
+            fires.forEach(zone => {
+                const div = document.createElement('div');
+                div.className = "hazard-alert glass-panel p-3 border-l-2 border-danger flex justify-between items-center";
+                div.innerHTML = `
+                    <div>
+                        <p class="text-[10px] font-black text-danger uppercase">Fire Detected</p>
+                        <p class="text-xs font-bold text-white">Zone ${zone}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[8px] text-slate-500 uppercase font-bold">Severity</p>
+                        <p class="text-[10px] font-black text-danger">EXTREME</p>
+                    </div>
+                `;
+                hazardList.appendChild(div);
+            });
+
+            // Removed old SOS update block since we now use real-time chat
+        }
+
+        function appendChatMessage(text, sender, originalText = "") {
+            const history = document.getElementById('chat-history');
+            if (history.innerHTML.includes("Awaiting Guest Connection")) {
+                history.innerHTML = '';
+            }
+            
+            const div = document.createElement('div');
+            const isStaff = sender === 'staff';
+            div.className = `flex ${isStaff ? 'justify-end' : 'justify-start'} mb-2`;
+            
+            const bubbleColor = isStaff ? 'bg-indigo-600' : 'bg-slate-700';
+            const originalBadge = originalText ? `<p class="text-[8px] text-slate-400 mt-1 uppercase italic">${originalText}</p>` : '';
+            
+            div.innerHTML = `
+                <div class="${bubbleColor} rounded-lg p-2 max-w-[80%]">
+                    <p class="text-[9px] font-black uppercase text-white/50 mb-0.5">${isStaff ? 'You (English)' : 'Guest (Translated)'}</p>
+                    <p class="text-xs text-white">${text}</p>
+                    ${originalBadge}
+                </div>
+            `;
+            history.appendChild(div);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function sendStaffMessage() {
+            const input = document.getElementById('staff-msg-input');
+            const text = input.value.trim();
+            if (!text || !currentTask) return;
+            
+            input.value = '';
+            appendChatMessage(text, 'staff');
+            
+            try {
+                await fetch('/comms/staff_to_guest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        staff_id: STAFF_ID,
+                        room: currentTask.room,
+                        lang: currentTask.language || 'English',
+                        text: text
+                    })
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        function confirmReached() {
+            if (!currentTask) return;
+            document.getElementById('reached-modal').classList.remove('hidden');
+        }
+
+        function closeReachedModal() {
+            document.getElementById('reached-modal').classList.add('hidden');
+        }
+
+        async function executeConfirmReached() {
+            closeReachedModal();
+            try {
+                const res = await fetch(`/staff/${STAFF_ID}/reached`, { method: 'POST' });
+                if (res.ok) {
+                    document.getElementById('reached-step').classList.add('hidden');
+                    document.getElementById('complete-step').classList.remove('hidden');
+                    
+                    // Show evacuation visualization
+                    document.getElementById('task-urgency-pill').innerText = "MISSION: EVACUATING";
+                    document.getElementById('task-urgency-pill').className = "status-badge bg-success/20 text-success border border-success/30";
+                    
+                    voiceAlert("Guest reached. Initializing optimized evacuation route. Follow the green markers.");
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function completeMission() {
+            if (!currentTask) return;
+            // Disable interaction
+            document.getElementById('complete-step').querySelector('button').disabled = true;
+            document.getElementById('complete-step').querySelector('button').innerText = "SYNCHRONIZING...";
+            
+            try {
+                await fetch(`/staff/${STAFF_ID}/complete`, { method: 'POST' });
+                
+                // Show Popup
+                const popup = document.getElementById('rescue-popup');
+                popup.classList.remove('hidden');
+                
+                currentTask = null;
+                
+                setTimeout(() => {
+                    popup.classList.add('hidden');
+                    resetUI();
+                    // Set status to waiting
+                    document.getElementById('connection-status').innerText = 'Neural Link Active - Waiting for Further Tasks';
+                    document.getElementById('connection-status').className = 'text-[10px] text-indigo-400 font-bold uppercase tracking-widest animate-pulse';
+                    
+                    setTimeout(fetchTask, 2000);
+                }, 3000);
+                
+                voiceAlert("Mission successful. Standing by for redeployment.");
+            } catch (e) { console.error(e); }
+        }
+
+        function resetUI() {
+            document.getElementById('task-location').innerText = "--";
+            document.getElementById('task-subtitle').innerText = "Awaiting AI Deployment";
+            document.getElementById('staff-eta').innerText = "--";
+            document.getElementById('fire-eta').innerText = "--";
+            document.getElementById('guest-name').innerText = "Searching...";
+            document.getElementById('guest-lang').innerText = "--";
+            document.getElementById('task-urgency-pill').innerText = "NO ACTIVE MISSION";
+            document.getElementById('task-urgency-pill').className = "status-badge bg-slate-800 text-slate-400";
+            document.getElementById('mission-controls').classList.add('hidden');
+            document.getElementById('active-mission-card').classList.remove('pulse-red');
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voice-toggle');
+            const icon = document.getElementById('voice-icon');
+            if (voiceEnabled) {
+                btn.classList.add('bg-indigo-600/20', 'border-indigo-500/50');
+                icon.classList.add('text-indigo-400');
+                voiceAlert("Voice guidance enabled.");
+            } else {
+                btn.classList.remove('bg-indigo-600/20', 'border-indigo-500/50');
+                icon.classList.remove('text-indigo-400');
+            }
+        }
+
+        function voiceAlert(text) {
+            if (!voiceEnabled || lastVoiceAlert === text) return;
+            lastVoiceAlert = text;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.1;
+            utterance.pitch = 0.9;
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- STAFF VOICE INPUT (STT) Logic ---
+        function initStaffSTT() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            
+            staffRecognition = new SpeechRecognition();
+            staffRecognition.continuous = true;
+            staffRecognition.interimResults = true;
+            staffRecognition.lang = 'en-US';
+            
+            staffRecognition.onstart = () => {
+                isStaffListening = true;
+                document.getElementById('staff-mic-icon').classList.add('text-indigo-400', 'animate-pulse');
+                document.getElementById('staff-voice-modal').classList.remove('hidden');
+                document.getElementById('staff-interim-text').innerText = "Listening for instructions...";
+            };
+            
+            staffRecognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                const combinedText = finalTranscript || interimTranscript;
+                if (combinedText) {
+                    document.getElementById('staff-msg-input').value = combinedText;
+                    document.getElementById('staff-interim-text').innerText = combinedText;
+                }
+            };
+            
+            staffRecognition.onend = () => {
+                isStaffListening = false;
+                document.getElementById('staff-mic-icon').classList.remove('text-indigo-400', 'animate-pulse');
+                document.getElementById('staff-voice-modal').classList.add('hidden');
+            };
+        }
+
+        function toggleStaffMic() {
+            if (!staffRecognition) initStaffSTT();
+            if (!staffRecognition) return;
+            
+            if (isStaffListening) {
+                staffRecognition.stop();
+            } else {
+                staffRecognition.start();
+            }
+        }
+
+        // --- STARTUP ---
+        connectWS();
+        requestAnimationFrame(drawMap);
+    </script>
+</body>
+</html>

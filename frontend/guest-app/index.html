@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis AI | Guest Safety Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #f97316;
+            --danger: #ef4444;
+            --bg: #0a0500;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: background 1s ease;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .pulse-orange { animation: pulse-orange 2s infinite; }
+        @keyframes pulse-orange {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(249, 115, 22, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+        }
+        .sos-btn {
+            width: 220px; height: 220px;
+            border-radius: 50%;
+            background: var(--danger);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            border: 8px solid rgba(255,255,255,0.1);
+            cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 0 50px rgba(239, 68, 68, 0.3);
+        }
+        .sos-btn:active { transform: scale(0.9); }
+        .sos-btn.panic { animation: shake 0.2s infinite; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .hidden { display: none !important; }
+
+        /* Map Styling */
+        #evac-map { width: 100%; height: 180px; background: #111; border-radius: 1rem; }
+        .path-line {
+            stroke-dasharray: 10;
+            animation: dash 1s linear infinite;
+        }
+        @keyframes dash { to { stroke-dashoffset: -20; } }
+        
+        /* Audio Visualizer */
+        #visualizer { height: 40px; display: flex; align-items: center; gap: 2px; }
+        .vis-bar { width: 3px; background: var(--primary); transition: height 0.1s; border-radius: 2px; }
+
+        /* Chat bubble */
+        .chat-bubble {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Follow Staff Instruction */
+        #follow-staff-block {
+            animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0% { border-color: rgba(249, 115, 22, 0.4); transform: scale(1); }
+            50% { border-color: rgba(249, 115, 22, 1); transform: scale(1.02); }
+            100% { border-color: rgba(249, 115, 22, 0.4); transform: scale(1); }
+        }
+        
+        /* Rescue Success Overlay */
+        #rescue-success-overlay {
+            background: linear-gradient(135deg, #065f46 0%, #064e3b 100%);
+            animation: full-screen-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes full-screen-reveal {
+            from { opacity: 0; transform: scale(1.1); filter: blur(20px); }
+            to { opacity: 1; transform: scale(1); filter: blur(0); }
+        }
+        .urgent-pulse {
+            animation: urgent-pulse 1s infinite alternate;
+        }
+        @keyframes urgent-pulse {
+            from { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5); }
+            to { text-shadow: 0 0 30px rgba(249, 115, 22, 1); }
+        }
+        .mic-pulse {
+            animation: mic-pulse 1.5s infinite;
+        }
+        @keyframes mic-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 30px rgba(249, 115, 22, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+        }
+    </style>
+</head>
+<body class="p-6">
+
+    <!-- AI MONITORING HEADER -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <div id="mic-indicator" class="w-3 h-3 bg-slate-700 rounded-full"></div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">AI Audio Guard: <span id="mic-status">Inactive</span></p>
+        </div>
+        <div id="lang-badge" class="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[9px] font-black uppercase tracking-tighter">
+            Detection: <span id="detected-lang">...</span>
+        </div>
+    </div>
+
+    <!-- STATE: SOS -->
+    <div id="state-sos" class="flex-grow flex flex-col items-center justify-center gap-10 overflow-y-auto">
+        <div class="text-center">
+            <h1 class="text-4xl font-black mb-2 uppercase tracking-tight">Need Help?</h1>
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-widest">Tap the button or speak loudly</p>
+        </div>
+
+        <button id="main-sos-btn" onclick="triggerSOS()" class="sos-btn">
+            <span class="text-6xl font-black tracking-tighter">SOS</span>
+            <span class="text-[10px] font-bold uppercase mt-1 opacity-60">Emergency Trigger</span>
+        </button>
+
+        <div class="flex gap-4">
+            <div class="glass px-6 py-3 rounded-2xl text-center">
+                <p class="text-[9px] text-slate-500 uppercase font-black">Room</p>
+                <input id="room-input" type="text" value="304" class="bg-transparent text-xl font-black text-center w-12 outline-none">
+            </div>
+            <div class="glass px-6 py-3 rounded-2xl text-center">
+                <p class="text-[9px] text-slate-500 uppercase font-black">Floor</p>
+                <input id="floor-input" type="text" value="3" class="bg-transparent text-xl font-black text-center w-12 outline-none">
+            </div>
+        </div>
+    </div>
+
+    <!-- STATE: EVACUATING -->
+    <div id="state-evacuating" class="hidden flex-grow flex flex-col gap-4 overflow-hidden h-full">
+        <div class="flex flex-row gap-4 h-full overflow-hidden">
+            <!-- Left Side: AI Guard & Info -->
+            <div class="w-1/3 flex flex-col gap-4">
+                <div id="ai-reassurance" class="glass p-4 rounded-2xl flex flex-col items-start gap-4 border-l-4 border-orange-500 bg-orange-500/5">
+                    <div class="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center shrink-0">
+                        <span class="text-orange-500 text-2xl">🛡️</span>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="flex flex-col mb-2">
+                            <div class="flex items-center gap-2 mb-1">
+                                <svg class="w-4 h-4 animate-pulse" viewBox="0 0 24 24">
+                                    <defs>
+                                        <linearGradient id="gemini-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#4285f4;stop-opacity:1" />
+                                            <stop offset="50%" style="stop-color:#9b72cb;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#d96570;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path fill="url(#gemini-grad)" d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+                                </svg>
+                                <p class="text-[10px] font-black uppercase text-orange-500">AI Guardian Active</p>
+                            </div>
+                            <span class="text-[7px] font-black text-slate-500 uppercase bg-white/5 px-2 py-0.5 rounded w-fit">Google Gemma</span>
+                        </div>
+                        <p id="reassurance-msg" class="text-sm font-semibold leading-relaxed text-white/90">Analyzing best route... Stay calm, we are with you.</p>
+                    </div>
+                </div>
+
+                <!-- LLM Decision Rationale -->
+                <div id="llm-decision-block" class="glass p-4 rounded-xl border border-white/10 hidden bg-blue-500/5">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-[9px] font-black uppercase text-slate-400 flex items-center gap-2">
+                            <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                            AI Decision Rationale
+                        </p>
+                    </div>
+                    <p id="llm-rationale-text" class="text-[11px] text-blue-200 font-mono leading-relaxed"></p>
+                </div>
+
+                <!-- Staff Comms Hub (Floating in Left Column) -->
+                <div id="guest-comms-hub" class="hidden glass p-4 rounded-2xl flex-col gap-2 relative min-h-[250px] flex-grow border border-orange-500/20">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Staff Comms Hub</h3>
+                    <div id="guest-chat-history" class="flex-grow overflow-y-auto space-y-2 pb-2 pr-2 max-h-[200px]">
+                        <!-- Messages -->
+                    </div>
+                    <div class="mt-auto flex gap-2 items-center">
+                        <button id="guest-mic-btn" onclick="toggleGuestMic()" class="w-10 h-10 rounded-full glass flex items-center justify-center hover:bg-orange-500/20 transition-all border border-white/10 shrink-0">
+                            <svg id="guest-mic-icon" class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        </button>
+                        <input type="text" id="guest-msg-input" placeholder="Speak..." class="flex-grow bg-slate-900/80 border border-slate-700/50 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-orange-500 text-white" onkeypress="if(event.key === 'Enter') sendGuestMessage()" oninput="debouncedDetectLang(this.value)">
+                        <button onclick="sendGuestMessage()" class="bg-orange-600 hover:bg-orange-500 text-white rounded-lg px-3 py-2 text-xs font-black uppercase transition-colors shrink-0">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Map & Instructions -->
+            <div class="flex-grow flex flex-col gap-4">
+                <!-- Follow Staff Instruction -->
+                <div id="follow-staff-block" class="hidden flex-grow flex flex-col items-center justify-center gap-8 glass rounded-[3rem] border-8 border-orange-500 p-10 text-center bg-orange-500/10 shadow-[0_0_100px_rgba(249,115,22,0.2)]">
+                    <div class="w-32 h-32 bg-orange-500 rounded-full flex items-center justify-center animate-bounce shadow-[0_0_60px_rgba(249,115,22,0.6)]">
+                        <svg class="w-16 h-16 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-6xl font-black uppercase text-orange-500 mb-4 tracking-tighter urgent-pulse">Follow the Staff</h2>
+                        <p class="text-2xl font-bold text-white max-w-sm mx-auto leading-tight">Rescue team has arrived. Remain with your assigned responder and follow the physical exit path immediately.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="w-3 h-3 bg-orange-500 rounded-full animate-ping"></div>
+                        <div class="w-3 h-3 bg-orange-500 rounded-full animate-ping [animation-delay:0.2s]"></div>
+                        <div class="w-3 h-3 bg-orange-500 rounded-full animate-ping [animation-delay:0.4s]"></div>
+                    </div>
+                </div>
+
+                <div id="map-container-el" class="flex-grow flex flex-col gap-2">
+                    <div class="flex items-center justify-between px-2">
+                        <p id="map-label" class="text-[9px] font-black uppercase tracking-widest text-slate-500">Floor Map // Loading...</p>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 bg-white rounded-full"></span>
+                            <span class="text-[9px] font-bold text-slate-500 uppercase">You</span>
+                        </div>
+                    </div>
+                    <div class="flex-grow glass rounded-3xl overflow-hidden relative shadow-2xl border border-white/10 bg-black/40">
+                        <canvas id="guest-floor-map" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Progress Footer (Simplified for Self-Rescue) -->
+        <div class="glass p-4 rounded-2xl flex items-center justify-between">
+            <div>
+                <p class="text-[9px] text-slate-500 uppercase font-black mb-1">Evacuation Status</p>
+                <p id="safety-status" class="text-xs font-black uppercase">Monitoring</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[9px] text-slate-500 uppercase font-black mb-1">Est. Exit Time</p>
+                <p class="text-xl font-black text-orange-500"><span id="eta-val">--</span> MIN</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANIC OVERLAY (Relief) -->
+    <div id="panic-overlay" class="hidden fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-10 text-center backdrop-blur-xl">
+        <div class="w-24 h-24 bg-orange-500/20 rounded-full flex items-center justify-center mb-6">
+            <span class="text-5xl">🧘</span>
+        </div>
+        <h2 class="text-3xl font-black uppercase mb-4 text-orange-500">Deep Breaths</h2>
+        <p class="text-lg font-semibold mb-8 leading-relaxed">We hear you. Help is prioritized. A staff member is being reassigned to you right now. Count to five slowly...</p>
+        <button onclick="dismissPanic()" class="px-8 py-4 bg-orange-500 rounded-full font-black uppercase tracking-widest text-sm">I'm Okay</button>
+    </div>
+
+    <!-- RESCUE SUCCESS OVERLAY -->
+    <div id="rescue-success-overlay" class="hidden fixed inset-0 z-[100] flex flex-col items-start justify-center p-20 text-left animate-in fade-in duration-1000">
+        <div class="w-32 h-32 bg-emerald-500/20 rounded-full flex items-center justify-center mb-8 shadow-[0_0_100px_rgba(16,185,129,0.4)]">
+            <span class="text-7xl">✅</span>
+        </div>
+        <h2 class="text-6xl font-black uppercase mb-6 tracking-tighter text-white max-w-xl leading-[0.9]">You are Rescued</h2>
+        <p class="text-2xl font-bold text-emerald-100/80 max-w-lg leading-tight mb-10">Safe extraction complete. Please follow the instructions of the staff member on-site for final egress.</p>
+        <div class="px-8 py-5 bg-white/5 rounded-3xl border border-white/10 backdrop-blur-2xl">
+            <p class="text-[10px] font-black uppercase text-white/40 tracking-[0.2em] mb-1">Mission Integrity Status</p>
+            <p class="text-lg font-black text-emerald-400">SECURE // OPERATIONAL_SUCCESS</p>
+        </div>
+    </div>
+
+    </footer>
+    
+    <!-- VOICE INPUT MODAL -->
+    <div id="voice-modal" class="hidden fixed inset-0 z-[120] bg-black/60 backdrop-blur-xl flex flex-col items-center justify-center p-6 transition-all duration-500">
+        <div class="w-32 h-32 bg-orange-500 rounded-full flex items-center justify-center mic-pulse mb-8 border-4 border-white/20">
+            <svg class="w-16 h-16 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        </div>
+        <div class="text-center max-w-md w-full">
+            <p class="text-orange-500 font-black uppercase tracking-[0.3em] mb-4 text-xs animate-pulse">Listening & Translating</p>
+            <div class="glass p-6 rounded-3xl border border-white/10 mb-8 min-h-[100px] flex items-center justify-center">
+                <p id="interim-text" class="text-xl font-bold text-white italic opacity-80">Speak now...</p>
+            </div>
+            <button onclick="toggleGuestMic()" class="px-10 py-4 bg-white/10 hover:bg-white/20 rounded-full font-black uppercase tracking-widest text-xs transition-all border border-white/10 text-white">Stop Recording</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let sosCount = 0;
+        let lastSosTime = 0;
+        let audioContext, analyser, dataArray;
+        let isPanicDetected = false;
+        let guestRoomId = "";
+        let staffAssigned = false;
+        window.assignedStaffId = null;
+        window.currentStaffLocation = null;
+        let guestRecognition;
+        let isGuestListening = false;
+
+        // --- AUDIO AI Logic ---
+        async function initAudioAI() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 64;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                document.getElementById('mic-indicator').className = 'w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_#22c55e]';
+                document.getElementById('mic-status').innerText = 'ACTIVE';
+                document.getElementById('mic-status').className = 'text-green-500';
+                
+                // Auto-detect language (Mock)
+                setTimeout(() => {
+                    const lang = navigator.language.split('-')[0];
+                    const langMap = { 'hi': 'Hindi', 'ta': 'Tamil', 'te': 'Telugu', 'en': 'English' };
+                    document.getElementById('detected-lang').innerText = langMap[lang] || 'English';
+                }, 2000);
+
+                processAudio();
+            } catch (e) {
+                console.warn("Mic access denied or unavailable.");
+            }
+        }
+
+        // --- VOICE INPUT (STT) Logic ---
+        function initGuestSTT() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.warn("STT not supported in this browser.");
+                return;
+            }
+            guestRecognition = new SpeechRecognition();
+            guestRecognition.continuous = true;
+            guestRecognition.interimResults = true;
+            
+            guestRecognition.onstart = () => {
+                isGuestListening = true;
+                document.getElementById('guest-mic-icon').classList.add('text-orange-500', 'animate-pulse');
+                document.getElementById('guest-mic-btn').classList.add('bg-orange-500/10', 'border-orange-500/50');
+                document.getElementById('voice-modal').classList.remove('hidden');
+                document.getElementById('interim-text').innerText = "Speak now...";
+            };
+            
+            guestRecognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                const combinedText = finalTranscript || interimTranscript;
+                if (combinedText) {
+                    document.getElementById('guest-msg-input').value = combinedText;
+                    document.getElementById('interim-text').innerText = combinedText;
+                    detectLang(combinedText); // Live detect as guest speaks
+                }
+            };
+            
+            guestRecognition.onend = () => {
+                isGuestListening = false;
+                document.getElementById('guest-mic-icon').classList.remove('text-orange-500', 'animate-pulse');
+                document.getElementById('guest-mic-btn').classList.remove('bg-orange-500/10', 'border-orange-500/50');
+                document.getElementById('voice-modal').classList.add('hidden');
+            };
+        }
+        function toggleGuestMic() {
+            if (isGuestListening) {
+                guestRecognition.stop();
+            } else {
+                guestRecognition.lang = 'en-US';
+                guestRecognition.start();
+            }
+        }
+
+        function processAudio() {
+            if (!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            let volume = 0;
+            for (let i = 0; i < dataArray.length; i++) volume += dataArray[i];
+            volume /= dataArray.length;
+
+            // Panic detection: Sustained high volume
+            if (volume > 80 && !isPanicDetected) {
+                isPanicDetected = true;
+                setTimeout(() => { if(isPanicDetected) triggerPanicRelief(); }, 3000);
+            } else if (volume < 40) {
+                isPanicDetected = false;
+            }
+
+            renderVisualizer(dataArray);
+            requestAnimationFrame(processAudio);
+        }
+
+        function renderVisualizer(data) {
+            const vis = document.getElementById('visualizer');
+            vis.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'vis-bar';
+                bar.style.height = `${(data[i] || 0) / 4}px`;
+                vis.appendChild(bar);
+            }
+        }
+
+        // --- SOS & PANIC Logic ---
+        function triggerSOS() {
+            const now = Date.now();
+            if (now - lastSosTime < 1000) sosCount++;
+            else sosCount = 1;
+            lastSosTime = now;
+
+            if (sosCount > 3) {
+                triggerPanicRelief();
+                document.getElementById('main-sos-btn').classList.add('panic');
+            }
+
+            guestRoomId = document.getElementById('room-input').value;
+            const floor = document.getElementById('floor-input').value;
+            
+            const guestNames = ["Rajesh Kumar", "Priya Singh", "Amit Patel", "Sita Devi", "Vikram Shah", "Arjun Das", "Neha Sharma", "Suresh Nair"];
+            const randomName = guestNames[parseInt(guestRoomId.slice(-1)) % guestNames.length] || "Guest User";
+
+            fetch('/guest/sos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    floor: parseInt(floor), 
+                    room: guestRoomId, 
+                    guest: randomName, 
+                    lang: document.getElementById('detected-lang').innerText,
+                    sos_message: `Help! Emergency in room ${guestRoomId}. I need assistance immediately!`
+                })
+            }).then(r => r.json()).then(data => {
+                switchState('evacuating');
+                drawGuestMap(parseInt(floor), guestRoomId, null);
+            }).catch(err => console.error("SOS fetch error:", err));
+        }
+
+        function triggerPanicRelief() {
+            document.getElementById('panic-overlay').classList.remove('hidden');
+        }
+
+        function dismissPanic() {
+            document.getElementById('panic-overlay').classList.add('hidden');
+            document.getElementById('main-sos-btn').classList.remove('panic');
+            sosCount = 0;
+        }
+
+        // --- MAP & VOICE Logic ---
+        let lastAssessment = null;
+        let guestGPS = { active: false, x: 0, y: 0, tx: 0, ty: 0, startX: 0, phase: 0, floor: 0 };
+        
+        function drawGuestMap(floor, currentRoom, staffRoom) {
+            const canvas = document.getElementById('guest-floor-map');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const padX = w * 0.15;
+            const padY = h * 0.2;
+            const floorW = w - 2 * padX;
+            const floorH = h - 2 * padY;
+            const corridorH = floorH * 0.3;
+            const roomH = (floorH - corridorH) / 2;
+            const roomW = floorW / 5;
+            
+            ctx.clearRect(0, 0, w, h);
+            
+            // Draw corridor
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+            ctx.fillRect(padX, padY + roomH, floorW, corridorH);
+            
+            // Draw Exits
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+            ctx.fillRect(padX - 50, padY + roomH, 50, corridorH);
+            ctx.fillRect(padX + floorW, padY + roomH, 50, corridorH);
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+            ctx.font = '10px Inter';
+            ctx.fillText("EXIT L", padX - 25, padY + roomH + corridorH/2);
+            ctx.fillText("EXIT R", padX + floorW + 25, padY + roomH + corridorH/2);
+
+            // getRoomColor helper
+            const getRoomColor = (roomId) => {
+                if (!lastAssessment) return 'rgba(161, 98, 7, 0.6)';
+                
+                const activeFires = lastAssessment.vision_summary ? lastAssessment.vision_summary.fire_zones || [] : [];
+                if (activeFires.includes(roomId)) return 'rgba(239, 68, 68, 0.9)'; // Bright Red for actual fire
+                
+                const fireZones = lastAssessment.fire_spread ? lastAssessment.fire_spread.etas || {} : {};
+                // Room is predicted to be on fire very soon (< 5m)
+                if (fireZones[roomId] !== undefined && fireZones[roomId] < 5) return 'rgba(249, 115, 22, 0.7)'; // Orange for immediate danger
+                // Room is at elevated risk (longer ETA)
+                if (fireZones[roomId] !== undefined) return 'rgba(245, 158, 11, 0.6)'; // Yellow-orange
+                
+                return 'rgba(16, 185, 129, 0.2)'; // Green for safe
+            };
+
+            // Draw rooms (2 rows of 5)
+            for(let i=0; i<10; i++) {
+                const isTop = i < 5;
+                const idx = i % 5;
+                const x = padX + idx * roomW;
+                const y = isTop ? padY : padY + roomH + corridorH;
+                const rid = `${floor}${(i+1).toString().padStart(2, '0')}`;
+                
+                // Room Box
+                ctx.fillStyle = getRoomColor(rid);
+                ctx.fillRect(x, y, roomW, roomH);
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+                ctx.strokeRect(x, y, roomW, roomH);
+                
+                // Room Label
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.font = 'bold 10px Inter';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(rid, x + roomW/2, y + roomH/2);
+                
+                // Static guests
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                const gx = padX + idx * roomW + roomW * 0.3;
+                const gy = isTop ? padY + roomH * 0.6 : padY + roomH + corridorH + roomH * 0.4;
+                ctx.beginPath();
+                ctx.arc(gx, gy, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw FIRE and ETA circles
+                const activeFires = lastAssessment?.vision_summary?.fire_zones || [];
+                const fireZones = lastAssessment?.fire_spread?.etas || {};
+                
+                if (activeFires.includes(rid)) {
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
+                    ctx.beginPath();
+                    ctx.arc(x + roomW/2, y + roomH/2, 35, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(244, 63, 94, 0.6)';
+                    ctx.stroke();
+                    ctx.fillStyle = 'rgba(244, 63, 94, 1)';
+                    ctx.fillText("FIRE", x + roomW/2, y + roomH/2 - 15);
+                } else if (fireZones[rid] !== undefined && fireZones[rid] < 5) {
+                    ctx.fillStyle = 'rgba(249, 115, 22, 0.25)';
+                    ctx.beginPath();
+                    ctx.arc(x + roomW/2, y + roomH/2, 25, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(249, 115, 22, 1)';
+                    ctx.fillText(`ETA ${fireZones[rid]}m`, x + roomW/2, y + roomH/2 - 15);
+                }
+                
+                // Staff Indicator (Yellow Triangle)
+                if (rid === staffRoom) {
+                    ctx.fillStyle = '#facc15';
+                    ctx.beginPath();
+                    const cx = x + roomW/2;
+                    const cy = y + roomH/2;
+                    ctx.moveTo(cx, cy - 6);
+                    ctx.lineTo(cx + 6, cy + 6);
+                    ctx.lineTo(cx - 6, cy + 6);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            
+            // Live Guest Tracking Dot
+            if (guestGPS.active && guestGPS.floor === floor) {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(guestGPS.x, guestGPS.y, 5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(guestGPS.x, guestGPS.y, 10, 0, Math.PI*2);
+                ctx.stroke();
+                
+                if (guestGPS.withStaff) {
+                    ctx.fillStyle = '#facc15';
+                    ctx.beginPath();
+                    const cx = guestGPS.x + 12; // offset from guest
+                    const cy = guestGPS.y;
+                    ctx.moveTo(cx, cy - 6);
+                    ctx.lineTo(cx + 6, cy + 6);
+                    ctx.lineTo(cx - 6, cy + 6);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else if (!guestGPS.active && currentRoom && Math.floor(parseInt(currentRoom)/100) === floor) {
+                // If not tracking, draw guest statically but offset to avoid room number text
+                const rNum = parseInt(currentRoom.slice(-2));
+                const rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
+                const isTop = rNum <= 5;
+                const x = padX + rIdx * roomW;
+                const y = isTop ? padY : padY + roomH + corridorH;
+                
+                const gX = x + roomW/2 - 15;
+                const gY = y + roomH/2 - 15;
+                
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(gX, gY, 5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(gX, gY, 10, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
+            document.getElementById('map-label').innerText = floor === 0 ? 'LIVE OPERATIONS MAP - GRND FLOOR' : `LIVE OPERATIONS MAP - FLOOR ${floor}`;
+        }
+        
+        function advanceGPSPhase() {
+            guestGPS.phase++;
+            const canvas = document.getElementById('guest-floor-map');
+            const w = canvas.width;
+            const h = canvas.height;
+            const padX = w * 0.15;
+            const padY = h * 0.2;
+            const floorH = h - 2 * padY;
+            const corridorH = floorH * 0.3;
+            const roomH = (floorH - corridorH) / 2;
+            const corridorY = padY + roomH + corridorH/2;
+            const exitX = guestGPS.exitDir === 'R' ? w - padX + 10 : padX - 10;
+            
+            const lang = document.getElementById('detected-lang').innerText;
+            const exitName = guestGPS.exitDir === 'R' ? 'Exit R' : 'Exit L';
+            const routeInstructions = {
+                1: { 'Hindi': `गलियारे में मुड़ें और ${exitName} की ओर चलें।`, 'Tamil': `தாழ்வாரத்தில் திரும்பி ${exitName} அடையாளத்தை நோக்கி நடக்கவும்.`, 'Telugu': `కారిడార్‌లో తిరిగి ${exitName} గుర్తు వైపు నడవండి.`, 'English': `Turn and walk down the corridor towards ${exitName}.` },
+                2: { 'Hindi': 'आप सीढ़ियों तक पहुँच गए हैं। कृपया सावधानी से नीचे उतरें।', 'Tamil': 'நீங்கள் படிக்கட்டுகளை அடைந்துவிட்டீர்கள். தயவுசெய்து கவனமாக கீழே இறங்கவும்.', 'Telugu': 'మీరు మెట్లను చేరుకున్నారు. దయచేసి జాగ్రత్తగా దిగండి.', 'English': 'You have reached the stairwell. Please descend carefully.' },
+                3: { 'Hindi': 'नीचे उतरते रहें।', 'Tamil': 'தொடர்ந்து கீழே இறங்கவும்.', 'Telugu': 'దిగడం కొనసాగించండి.', 'English': 'Keep descending.' },
+                4: { 'Hindi': 'आप भूतल पर पहुँच गए हैं। मुख्य निकास द्वार की ओर बढ़ें।', 'Tamil': 'நீங்கள் தரை தளத்தை அடைந்துவிட்டீர்கள். பிரதான வெளியேறும் கதவுகளுக்குச் செல்லவும்.', 'Telugu': 'మీరు గ్రౌండ్ ఫ్లోర్ చేరుకున్నారు. ప్రధాన ఎగ్జిట్ తలుపుల వైపు వెళ్లండి.', 'English': 'You have reached the ground floor. Proceed to the main exit doors.' },
+                5: { 'Hindi': 'आप सुरक्षित रूप से बाहर निकल गए हैं। कृपया बाहर आपातकालीन कर्मचारियों से मिलें।', 'Tamil': 'நீங்கள் பாதுகாப்பாக வெளியேற்றப்பட்டீர்கள். வெளியே உள்ள அவசரகால ஊழியர்களைத் தொடர்பு கொள்ளவும்.', 'Telugu': 'మీరు సురక్షితంగా ఖాళీ చేయబడ్డారు. దయచేసి బయట అత్యవసర సిబ్బందిని కలవండి.', 'English': 'You are safely evacuated. Please check in with emergency staff outside.' }
+            };
+
+            if (guestGPS.phase === 1) {
+                guestGPS.tx = guestGPS.startX;
+                guestGPS.ty = corridorY;
+            } else if (guestGPS.phase === 2) {
+                guestGPS.tx = exitX;
+                guestGPS.ty = corridorY;
+            } else if (guestGPS.phase === 3) {
+                setTimeout(() => { 
+                    guestGPS.floor--; 
+                    if(guestGPS.floor <= 0) { 
+                        guestGPS.floor = 0; 
+                        advanceGPSPhase(); 
+                    } else { 
+                        guestGPS.phase--; 
+                        advanceGPSPhase(); 
+                    } 
+                }, 3000);
+            } else if (guestGPS.phase === 4) {
+                guestGPS.tx = w / 2;
+                guestGPS.ty = corridorY;
+            } else if (guestGPS.phase === 5) {
+                guestGPS.tx = w / 2;
+                guestGPS.ty = h + 20;
+            }
+
+            if (routeInstructions[guestGPS.phase]) {
+                const msg = routeInstructions[guestGPS.phase][lang] || routeInstructions[guestGPS.phase]['English'];
+                document.getElementById('reassurance-msg').innerText = msg;
+                guestGPS.waitingForVoice = true;
+                speakInstructions(msg, () => {
+                    guestGPS.waitingForVoice = false;
+                });
+            } else {
+                guestGPS.waitingForVoice = false;
+            }
+        }
+        
+        function updateGPS() {
+            if (!guestGPS.active) return;
+            
+            const dx = guestGPS.tx - guestGPS.x;
+            const dy = guestGPS.ty - guestGPS.y;
+            const dist = Math.hypot(dx, dy);
+            
+            if (dist > 1.5) {
+                guestGPS.x += (dx / dist) * 1.5;
+                guestGPS.y += (dy / dist) * 1.5;
+            } else {
+                guestGPS.x = guestGPS.tx;
+                guestGPS.y = guestGPS.ty;
+                if (guestGPS.phase !== 3 && guestGPS.phase < 5) {
+                    if (!guestGPS.waitingForVoice) {
+                        advanceGPSPhase();
+                    }
+                }
+            }
+            
+            drawGuestMap(guestGPS.floor, guestRoomId, null);
+            requestAnimationFrame(updateGPS);
+        }
+
+        let lastSpoken = "";
+        let isSpeaking = false;
+        function speakInstructions(msg, onEndCallback) {
+            if (msg === lastSpoken || isSpeaking) {
+                if (onEndCallback) onEndCallback();
+                return;
+            }
+            lastSpoken = msg;
+            isSpeaking = true;
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(msg);
+            const lang = document.getElementById('detected-lang').innerText;
+            
+            const voiceMap = { 'Hindi': 'hi-IN', 'Tamil': 'ta-IN', 'Telugu': 'te-IN', 'English': 'en-US' };
+            utterance.lang = voiceMap[lang] || 'en-US';
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+            
+            const fireOnce = () => {
+                isSpeaking = false;
+                if (onEndCallback) onEndCallback();
+            };
+            
+            utterance.onend = fireOnce;
+            utterance.onerror = fireOnce;
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- WS Logic ---
+        function initWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/guest`);
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                
+                if (data.type === 'AI_ASSESSMENT') {
+                    lastAssessment = data.assessment;
+                    const assessment = data.assessment;
+                    const myFloor = parseInt(document.getElementById('floor-input').value);
+                    
+                    const rescueDecision = assessment.rescue_decisions ? assessment.rescue_decisions.find(r => r.room === guestRoomId) : null;
+                    
+                    if (rescueDecision) {
+                        document.getElementById('map-wrapper').classList.remove('hidden');
+                        document.getElementById('llm-decision-block').classList.remove('hidden');
+                        document.getElementById('llm-rationale-text').innerText = rescueDecision.rationale || "AI Decision processing...";
+
+                        if (rescueDecision.rescue_mode === 'STAFF_RESCUE') {
+                            // Apply Red/Alert Theme
+                            document.body.style.background = 'linear-gradient(180deg, #3f0f0f 0%, #1a0505 100%)';
+                            document.getElementById('safety-status').innerText = staffAssigned ? `Rescue Team Assigned: ${window.assignedStaffId}` : "Help is on the way";
+                            document.getElementById('safety-status').className = "text-xs font-black uppercase text-red-500";
+                            
+                            // Use AI generated advice
+                            const msg = rescueDecision.text_advice || "Stay calm. Help is on the way.";
+                            document.getElementById('reassurance-msg').innerText = msg;
+                            
+                            // Speak advice
+                            if (!guestGPS.waitingForVoice) {
+                                guestGPS.waitingForVoice = true;
+                                speakInstructions(rescueDecision.voice_advice || msg, () => {
+                                    guestGPS.waitingForVoice = false;
+                                });
+                            }
+                            
+                            // Don't start self-rescue GPS tracking, let staff tracking work
+                            guestGPS.active = false;
+                            drawGuestMap(myFloor, guestRoomId, staffAssigned && window.currentStaffLocation ? window.currentStaffLocation.room : null);
+
+                        } else if (rescueDecision.rescue_mode === 'SELF_RESCUE') {
+                            // Apply Green Theme
+                            document.body.style.background = 'linear-gradient(180deg, #0f3f1f 0%, #051a0a 100%)';
+                            document.getElementById('safety-status').innerText = "Self-Rescue Active";
+                            document.getElementById('safety-status').className = "text-xs font-black uppercase text-emerald-500";
+                            
+                            const msg = rescueDecision.text_advice || "Proceed to the nearest exit immediately.";
+                            document.getElementById('reassurance-msg').innerText = msg;
+                            
+                            if (!guestGPS.active) {
+                                guestGPS.active = true;
+                                guestGPS.floor = myFloor;
+                                guestGPS.phase = 0;
+                                
+                                const canvas = document.getElementById('guest-floor-map');
+                                const w = canvas.width;
+                                const h = canvas.height;
+                                const padX = w * 0.15;
+                                const padY = h * 0.2;
+                                const floorW = w - 2 * padX;
+                                const roomW = floorW / 5;
+                                const floorH = h - 2 * padY;
+                                const corridorH = floorH * 0.3;
+                                const roomH = (floorH - corridorH) / 2;
+                                
+                                const rNum = parseInt(guestRoomId.slice(-2));
+                                let rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
+                                let isTop = rNum <= 5;
+                                
+                                guestGPS.exitDir = rIdx >= 3 ? 'R' : 'L';
+                                
+                                const rx = padX + rIdx * roomW;
+                                const ry = isTop ? padY : padY + roomH + corridorH;
+                                
+                                guestGPS.x = rx + roomW/2 - 15;
+                                guestGPS.y = ry + roomH/2 - 15;
+                                guestGPS.startX = guestGPS.x;
+                                guestGPS.tx = guestGPS.x;
+                                guestGPS.ty = guestGPS.y;
+                                
+                                guestGPS.waitingForVoice = true;
+                                speakInstructions(rescueDecision.voice_advice || msg, () => {
+                                    guestGPS.waitingForVoice = false;
+                                });
+                                
+                                updateGPS();
+                            } else {
+                                // Speak advice if phase changed or something
+                            }
+                        }
+                    }
+                }
+                
+                if (data.type === 'STAFF_DEPLOYED' && data.data.room === guestRoomId) {
+                    staffAssigned = true;
+                    window.assignedStaffId = data.data.assigned_to;
+                    document.getElementById('safety-status').innerText = "Rescue Team Assigned: " + data.data.assigned_to;
+                    document.getElementById('safety-status').className = "text-xs font-black uppercase text-red-500";
+                    document.getElementById('eta-val').innerText = data.data.eta || 3;
+                    document.getElementById('guest-comms-hub').classList.remove('hidden');
+                    document.getElementById('guest-comms-hub').classList.add('flex');
+                }
+                
+                if (data.type === 'STAFF_MESSAGE' && data.room === guestRoomId) {
+                    appendGuestChatMessage(data.translated_text, 'staff', data.original_text);
+                    speakInstructions("Staff says: " + data.translated_text);
+                }
+                
+                if (data.type === 'STAFF_REACHED' && data.room === guestRoomId) {
+                    document.getElementById('map-container-el').classList.add('hidden');
+                    document.getElementById('follow-staff-block').classList.remove('hidden');
+                    document.getElementById('reassurance-msg').innerText = "Rescue team is here. Follow the responder immediately.";
+                    speakInstructions("Staff has reached you. Please follow the responder to the exit.");
+                    
+                    // Adjust UI for rescue phase
+                    document.getElementById('ai-reassurance').parentElement.classList.remove('w-1/3');
+                    document.getElementById('ai-reassurance').parentElement.classList.add('w-1/4');
+                }
+                
+                if (data.type === 'RESCUE_SUCCESS' && data.task.room === guestRoomId) {
+                    document.getElementById('rescue-success-overlay').classList.remove('hidden');
+                    speakInstructions("You are rescued. Mission successful.");
+                }
+
+                if (data.type === 'STAFF_LOCATION' && window.assignedStaffId === data.staff_id) {
+                    window.currentStaffLocation = data.location;
+                    const myFloor = parseInt(document.getElementById('floor-input').value);
+                    if (!guestGPS.active) {
+                        drawGuestMap(myFloor, guestRoomId, window.currentStaffLocation.room);
+                    }
+                }
+            };
+            ws.onclose = () => setTimeout(initWS, 2000);
+        }
+
+        function appendGuestChatMessage(text, sender, originalText = "") {
+            const history = document.getElementById('guest-chat-history');
+            const div = document.createElement('div');
+            const isGuest = sender === 'guest';
+            div.className = `flex ${isGuest ? 'justify-end' : 'justify-start'} mb-1`;
+            
+            const bubbleColor = isGuest ? 'bg-orange-600' : 'bg-slate-700';
+            const originalBadge = originalText ? `<p class="text-[7px] text-slate-300 mt-0.5 uppercase italic">${originalText}</p>` : '';
+            
+            div.innerHTML = `
+                <div class="${bubbleColor} rounded-lg p-2 max-w-[85%]">
+                    <p class="text-[8px] font-black uppercase text-white/60 mb-0.5">${isGuest ? 'You' : 'Staff (Translated)'}</p>
+                    <p class="text-[11px] text-white leading-tight">${text}</p>
+                    ${originalBadge}
+                </div>
+            `;
+            history.appendChild(div);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function sendGuestMessage() {
+            const input = document.getElementById('guest-msg-input');
+            const text = input.value.trim();
+            if (!text || !guestRoomId) return;
+            
+            input.value = '';
+            appendGuestChatMessage(text, 'guest');
+            
+            try {
+                await fetch('/comms/guest_to_staff', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        room: guestRoomId,
+                        lang: document.getElementById('detected-lang').innerText || 'English',
+                        text: text
+                    })
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        function switchState(state) {
+            document.getElementById('state-sos').classList.add('hidden');
+            document.getElementById('state-evacuating').classList.add('hidden');
+            document.getElementById('state-' + state).classList.remove('hidden');
+            
+            if (state === 'evacuating') {
+                document.body.style.background = 'linear-gradient(180deg, #1a0f00 0%, #0a0500 100%)';
+            }
+        }
+
+        let detectTimeout;
+        function debouncedDetectLang(text) {
+            clearTimeout(detectTimeout);
+            detectTimeout = setTimeout(() => detectLang(text), 500);
+        }
+
+        async function detectLang(text) {
+            // Detection disabled for English Only Mode
+            return;
+        }
+
+        window.onload = () => {
+            initWS();
+            initAudioAI();
+            initGuestSTT();
+        };
+    </script>
+</body>
+</html>

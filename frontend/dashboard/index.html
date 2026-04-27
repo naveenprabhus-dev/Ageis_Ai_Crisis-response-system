@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis | GM Command HUD 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --red: #ff4d4d;
+            --yellow: #ffd93d;
+            --green: #6bcb77;
+            --bg: #050507;
+            --card: #12121a;
+            --accent: #00f2ff;
+        }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        /* 3D Scene Wrapper */
+        .scene {
+            width: 100%;
+            height: 100%;
+            perspective: 1500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #050507 100%);
+        }
+
+        .building {
+            width: 300px;
+            height: 500px;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(60deg) rotateZ(-30deg);
+            transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .floor-layer {
+            position: absolute;
+            width: 300px;
+            height: 200px;
+            background: rgba(0, 242, 255, 0.05);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            transform-style: preserve-3d;
+            transition: all 0.5s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: rgba(0, 242, 255, 0.5);
+        }
+
+        .floor-layer:hover {
+            background: rgba(0, 242, 255, 0.15);
+            transform: translateZ(20px);
+            color: white;
+        }
+
+        .floor-layer.CRISIS {
+            background: rgba(255, 77, 77, 0.2);
+            border-color: var(--red);
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
+            70% { box-shadow: 0 0 40px 10px rgba(255, 77, 77, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+        }
+
+        /* Staff Marker in 3D */
+        .staff-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: var(--yellow);
+            border-radius: 50%;
+            box-shadow: 0 0 15px var(--yellow);
+            transform: translateZ(5px);
+            pointer-events: none;
+            transition: all 0.5s linear;
+        }
+
+        /* Side Panels */
+        .panel {
+            position: absolute;
+            background: rgba(18, 18, 26, 0.8);
+            backdrop-blur: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            z-index: 100;
+        }
+        .left-panel { top: 20px; left: 20px; width: 300px; border-radius: 20px; }
+        .right-panel { top: 20px; right: 20px; width: 350px; bottom: 20px; border-radius: 20px; display: flex; flex-direction: column; }
+        .bottom-panel { bottom: 20px; left: 20px; width: 300px; border-radius: 20px; }
+
+        .stat-value { font-size: 2.5rem; font-weight: 800; color: var(--accent); }
+        .feed-container { flex-grow: 1; overflow-y: auto; margin-top: 15px; font-family: monospace; font-size: 0.75rem; }
+        .feed-item { margin-bottom: 8px; padding: 10px; background: rgba(255,255,255,0.03); border-left: 2px solid var(--accent); border-radius: 4px; }
+        .feed-item.CRITICAL { border-left-color: var(--red); color: var(--red); }
+
+        /* Floor Details Overlay */
+        .floor-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 5, 7, 0.95);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            padding: 40px;
+        }
+        .blueprint {
+            width: 100%;
+            height: 100%;
+            border: 2px solid rgba(0, 242, 255, 0.2);
+            background-image: 
+                linear-gradient(to right, rgba(0, 242, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 242, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            position: relative;
+            border-radius: 20px;
+        }
+        .room {
+            position: absolute;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-size: 0.7rem;
+            background: rgba(255,255,255,0.02);
+        }
+        .room.SOS { background: rgba(255, 77, 77, 0.2); border-color: var(--red); }
+
+        /* Vision Section */
+        .vision-feed {
+            height: 180px;
+            background: #000;
+            border-radius: 12px;
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        .vision-overlay {
+            position: absolute;
+            border: 2px solid #0f0;
+            pointer-events: none;
+        }
+        .vision-label {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            background: #0f0;
+            color: #000;
+            font-size: 10px;
+            padding: 2px 5px;
+            font-weight: bold;
+        }
+        /* 2D Staff Marker */
+        .staff-marker-2d {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--yellow);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--yellow);
+            z-index: 100;
+            transition: all 0.5s linear;
+        }
+        .staff-label-2d {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            font-weight: bold;
+            color: var(--yellow);
+            white-space: nowrap;
+        }
+
+        /* Vision AI Expansion */
+        .vision-overlay-expanded {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 5, 7, 0.98);
+            z-index: 500;
+            display: none;
+            padding: 50px;
+            overflow-y: auto;
+        }
+        .vision-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 40px;
+            height: 80%;
+        }
+
+        /* Person Movement Markers */
+        .person-dot-3d {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            pointer-events: none;
+            transition: all 5s linear; /* Smooth 5s movement matching AI loop */
+        }
+        .person-dot-2d {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            z-index: 90;
+            transition: all 5s linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="scene" id="scene">
+        <div class="building" id="building">
+            <!-- 3D Floors will be injected here -->
+        </div>
+    </div>
+
+    <!-- Stats HUD -->
+    <div class="panel left-panel">
+        <div class="text-[10px] uppercase tracking-widest opacity-50 mb-1">Evacuation Progress</div>
+        <div class="stat-value" id="evac-percent">45.0%</div>
+        <div class="w-full bg-gray-800 h-1 rounded-full mt-2 overflow-hidden">
+            <div id="evac-bar" class="bg-[#00f2ff] h-full transition-all duration-1000" style="width: 45%;"></div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 mt-8">
+            <div>
+                <div class="text-[10px] uppercase opacity-50">Rescuers</div>
+                <div class="text-xl font-bold" id="active-rescuers">0</div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase opacity-50">Pending</div>
+                <div class="text-xl font-bold" id="pending-tasks">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Intelligence Feed -->
+    <div class="panel right-panel">
+        <div class="text-[10px] uppercase tracking-widest opacity-50 mb-4 flex justify-between">
+            <span>Mission Intel Feed</span>
+            <span class="text-green-500">LIVE SYNC</span>
+        </div>
+        
+        <div class="feed-container" id="feed">
+            <div class="feed-item">AEGIS CORE INITIALIZED...</div>
+        </div>
+
+        <!-- AI Vision Integration -->
+        <div class="mt-8">
+            <div class="text-[10px] uppercase tracking-widest opacity-50 mb-2">AI Camera Analysis (Sector B)</div>
+            <div class="vision-feed cursor-pointer group" id="vision-feed" onclick="expandVision()">
+                <img src="https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=400&q=80" class="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity">
+                <div class="vision-overlay" style="top: 40%; left: 30%; width: 25%; height: 30%; border-color: #ff4d4d;">
+                    <div class="vision-label" style="background: #ff4d4d;">FIRE_DETECTED (98%)</div>
+                </div>
+                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                    <span class="text-[10px] font-bold border border-white px-3 py-1">EXPAND INTELLIGENCE</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vision AI Big Screen -->
+    <div class="vision-overlay-expanded" id="vision-expanded">
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <h2 class="text-4xl font-black glow-text">NEURAL_VISION_CORE</h2>
+                <p class="text-sm opacity-50 uppercase tracking-widest">Sector B Deployment • Tactical AI Telemetry</p>
+            </div>
+            <button onclick="closeVision()" class="bg-white/10 hover:bg-white/20 px-8 py-4 rounded-xl font-bold">EXIT ANALYSIS</button>
+        </div>
+        
+        <div class="vision-grid">
+            <div class="relative bg-black rounded-3xl overflow-hidden border border-white/10">
+                <img src="https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80" class="w-full h-full object-cover opacity-50">
+                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                <!-- AI Box 1 -->
+                <div class="absolute border-2 border-red-500 shadow-[0_0_20px_#ff4d4d]" style="top: 30%; left: 20%; width: 30%; height: 40%;">
+                    <div class="absolute -top-6 left-0 bg-red-500 text-black text-[10px] px-2 py-1 font-bold">IGNITION_CORE_PRIMARY (98.4%)</div>
+                </div>
+                <!-- AI Box 2 -->
+                <div class="absolute border-2 border-yellow-500" style="top: 10%; left: 50%; width: 40%; height: 50%;">
+                    <div class="absolute -top-6 left-0 bg-yellow-500 text-black text-[10px] px-2 py-1 font-bold">SMOKE_PLUME_ALPHA (89.2%)</div>
+                </div>
+                <div class="absolute bottom-10 left-10 space-y-2">
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div><span class="text-xs font-bold">FLASHPOINT WARNING: T-MINUS 04:12</span></div>
+                    <div class="text-[10px] opacity-60">SENSORS: THERMAL_DETECTION, GAS_ANALYSER_B4</div>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="bg-white/5 p-8 rounded-3xl border border-white/10">
+                    <h3 class="text-xs uppercase tracking-widest opacity-50 mb-4">Neural Analytics</h3>
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-xs mb-2"><span>HAZARD_LEVEL</span><span class="text-red-500">EXTREME</span></div>
+                            <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-red-500 h-full w-[92%]"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-2"><span>GROWTH_VELOCITY</span><span class="text-yellow-500">+1.2m/s</span></div>
+                            <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-yellow-500 h-full w-[75%]"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-2"><span>OXYGEN_DEPLETION</span><span class="text-cyan-400">14.2%</span></div>
+                            <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-cyan-400 h-full w-[40%]"></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white/5 p-8 rounded-3xl border border-white/10 flex-grow">
+                    <h3 class="text-xs uppercase tracking-widest opacity-50 mb-4">Propagation Vectors</h3>
+                    <div class="space-y-4 font-mono text-[10px]">
+                        <p class="text-gray-400">>> Calculating smoke drift (East)...</p>
+                        <p class="text-cyan-400">>> Path Clear: Service Stairwell B</p>
+                        <p class="text-red-500">>> BLOCKAGE: Corridor 402 Debris</p>
+                        <p class="text-gray-400">>> Adjusting guest route for ROOM 402...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floor Drill-down Overlay -->
+    <div class="floor-overlay" id="floor-overlay">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h2 class="text-3xl font-black" id="overlay-title">FLOOR 4 ANALYSIS</h2>
+                <p class="text-sm opacity-50">Detailed Sector Blueprint & Real-time Tracking</p>
+            </div>
+            <button onclick="closeOverlay()" class="bg-white/10 hover:bg-white/20 px-6 py-3 rounded-xl font-bold transition-all">CLOSE VIEW</button>
+        </div>
+        
+        <div class="blueprint" id="blueprint">
+            <!-- Rooms & 2D Markers will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+        const API_BASE = `${protocol}//${host}`;
+        const ws = new WebSocket(`${wsProtocol}//${host}/ws/gm`);
+        const building = document.getElementById('building');
+        const staffMarkers3D = {}; // {staff_id: element}
+        const staffMarkers2D = {}; // {staff_id: element}
+        let activeFloor = null;
+        let criticalRooms = new Set(); // Set of room IDs
+
+        // Initialize 3D Building (10 floors)
+        for(let i=10; i>=1; i--) {
+            const floor = document.createElement('div');
+            floor.className = 'floor-layer';
+            floor.id = `floor-3d-${i}`;
+            floor.style.transform = `translateZ(${(i-1)*40}px)`;
+            floor.innerHTML = `<span>LVL ${i}</span>`;
+            floor.onclick = () => openFloorDetail(i);
+            building.appendChild(floor);
+        }
+
+        function addFeed(msg, type = '') {
+            const container = document.getElementById('feed');
+            const div = document.createElement('div');
+            div.className = `feed-item ${type}`;
+            div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            container.prepend(div);
+            if (container.children.length > 10) container.lastChild.remove();
+        }
+
+        function updateStats(stats) {
+            document.getElementById('evac-percent').innerText = stats.evacuation_percentage + "%";
+            document.getElementById('evac-bar').style.width = stats.evacuation_percentage + "%";
+            document.getElementById('active-rescuers').innerText = stats.active_rescues;
+            document.getElementById('pending-tasks').innerText = stats.pending_count;
+        }
+
+        function openFloorDetail(floorNum) {
+            activeFloor = floorNum;
+            const overlay = document.getElementById('floor-overlay');
+            const blueprint = document.getElementById('blueprint');
+            document.getElementById('overlay-title').innerText = `FLOOR ${floorNum} ANALYSIS`;
+            blueprint.innerHTML = '';
+            
+            // Create rooms
+            for(let i=1; i<=10; i++) {
+                const roomId = `${floorNum}${i.toString().padStart(2, '0')}`;
+                const room = document.createElement('div');
+                room.className = `room ${criticalRooms.has(roomId) ? 'SOS' : ''}`;
+                room.id = `room-2d-${roomId}`;
+                const row = Math.floor((i-1)/5);
+                const col = (i-1)%5;
+                room.style.width = '16%';
+                room.style.height = '30%';
+                room.style.top = (10 + row * 40) + '%';
+                room.style.left = (6 + col * 18) + '%';
+                room.innerHTML = `<span class="opacity-30">RM</span><span class="font-bold">${roomId}</span>`;
+                blueprint.appendChild(room);
+            }
+            
+            overlay.style.display = 'flex';
+            building.style.transform = `rotateX(0deg) rotateZ(0deg) scale(0.5) translateX(-200%)`;
+            
+            // Refresh staff markers for 2D
+            for(let sid in staffMarkers3D) {
+                // We'll update them in the next STAFF_LOCATION message or periodic update
+            }
+        }
+
+        function closeOverlay() {
+            activeFloor = null;
+            document.getElementById('floor-overlay').style.display = 'none';
+            building.style.transform = `rotateX(60deg) rotateZ(-30deg)`;
+        }
+
+        function expandVision() {
+            document.getElementById('vision-expanded').style.display = 'block';
+        }
+        function closeVision() {
+            document.getElementById('vision-expanded').style.display = 'none';
+        }
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === "SYNC") {
+                updateStats(msg.stats);
+                for(let sid in msg.staff_locations) {
+                    updateStaffMarkers(sid, msg.staff_locations[sid]);
+                }
+            } else if (msg.type === "CRISIS_DETECTED" || msg.type === "GUEST_SOS") {
+                criticalRooms.add(msg.data.room);
+                const floorEl = document.getElementById(`floor-3d-${msg.data.floor}`);
+                if (floorEl) floorEl.classList.add('CRISIS');
+                
+                // Update 2D if viewing this floor
+                if (activeFloor === msg.data.floor) {
+                    const room2d = document.getElementById(`room-2d-${msg.data.room}`);
+                    if (room2d) room2d.classList.add('SOS');
+                }
+
+                addFeed(`${msg.type === "GUEST_SOS" ? "🚨 SOS" : "⚠️ CRISIS"}: Room ${msg.data.room}`, 'CRITICAL');
+            } else if (msg.type === "STAFF_LOCATION") {
+                updateStaffMarkers(msg.staff_id, msg.location);
+            } else if (msg.type === "RESCUE_SUCCESS") {
+                criticalRooms.delete(msg.task.room);
+                addFeed(`SUCCESS: Room ${msg.task.room} cleared`, 'SUCCESS');
+                updateStats(msg.stats);
+                
+                // Remove crisis highlight from 3D
+                document.getElementById(`floor-3d-${msg.task.floor}`).classList.remove('CRISIS');
+                
+                // Remove crisis highlight from 2D
+                if (activeFloor === msg.task.floor) {
+                    const room2d = document.getElementById(`room-2d-${msg.task.room}`);
+                    if (room2d) room2d.classList.remove('SOS');
+                }
+            } else if (msg.type === "PEOPLE_UPDATE") {
+                updatePeopleMarkers(msg.people);
+            }
+        };
+
+        function updateStaffMarkers(id, loc) {
+            // Update 3D Marker
+            let marker3d = staffMarkers3D[id];
+            if (!marker3d) {
+                marker3d = document.createElement('div');
+                marker3d.className = 'staff-dot';
+                building.appendChild(marker3d);
+                staffMarkers3D[id] = marker3d;
+            }
+            const floorZ = (loc.floor - 1) * 40;
+            marker3d.style.left = loc.x + '%';
+            marker3d.style.top = loc.y + '%';
+            marker3d.style.transform = `translateZ(${floorZ + 5}px)`;
+
+            // Update 2D Marker (only if on active floor)
+            if (activeFloor === loc.floor) {
+                let marker2d = staffMarkers2D[id];
+                if (!marker2d) {
+                    marker2d = document.createElement('div');
+                    marker2d.className = 'staff-marker-2d';
+                    marker2d.innerHTML = `<div class="staff-label-2d">${id}</div>`;
+                    document.getElementById('blueprint').appendChild(marker2d);
+                    staffMarkers2D[id] = marker2d;
+                }
+                marker2d.style.display = 'block';
+                marker2d.style.left = loc.x + '%';
+                marker2d.style.top = loc.y + '%';
+            } else {
+                if (staffMarkers2D[id]) staffMarkers2D[id].style.display = 'none';
+            }
+        }
+
+        const peopleMarkers3D = {};
+        const peopleMarkers2D = {};
+
+        function getRoomCoords(roomStr) {
+            if (roomStr.includes("Stairwell") || roomStr.includes("Exit") || roomStr === "001" || roomStr === "010") {
+                let sNum = 1;
+                if (roomStr.includes("-")) sNum = parseInt(roomStr.split("-")[1]);
+                else if (roomStr === "010") sNum = 10;
+                return { x: sNum < 5 ? 5 : 95, y: 50 };
+            }
+            try {
+                let rNum = parseInt(roomStr.slice(-2));
+                let col = (rNum-1) % 5;
+                let row = Math.floor((rNum-1) / 5);
+                return {
+                    x: 6 + col * 18 + 8, // center of room
+                    y: 10 + row * 40 + 15
+                };
+            } catch (e) {
+                return { x: 50, y: 50 };
+            }
+        }
+
+        function updatePeopleMarkers(people) {
+            for (let person of people) {
+                if (person.status === "SAFE" || person.status === "EVACUATED") {
+                    if (peopleMarkers3D[person.id]) {
+                        peopleMarkers3D[person.id].remove();
+                        delete peopleMarkers3D[person.id];
+                    }
+                    if (peopleMarkers2D[person.id]) {
+                        peopleMarkers2D[person.id].remove();
+                        delete peopleMarkers2D[person.id];
+                    }
+                    continue;
+                }
+
+                let coords = getRoomCoords(person.current_position);
+                
+                // 3D Marker
+                let marker3d = peopleMarkers3D[person.id];
+                if (!marker3d) {
+                    marker3d = document.createElement('div');
+                    marker3d.className = 'person-dot-3d';
+                    building.appendChild(marker3d);
+                    peopleMarkers3D[person.id] = marker3d;
+                }
+                
+                const floorZ = (person.floor - 1) * 40;
+                marker3d.style.left = coords.x + '%';
+                marker3d.style.top = coords.y + '%';
+                marker3d.style.transform = `translateZ(${floorZ + 15}px)`;
+                
+                if (person.status === "STAYING") {
+                    marker3d.style.backgroundColor = '#f97316';
+                    marker3d.style.boxShadow = '0 0 10px #f97316';
+                    marker3d.style.animation = 'pulse-orange 2s infinite';
+                } else {
+                    marker3d.style.backgroundColor = '#00f2ff';
+                    marker3d.style.boxShadow = '0 0 10px #00f2ff';
+                    marker3d.style.animation = 'none';
+                }
+
+                // 2D Marker
+                if (activeFloor === person.floor) {
+                    let marker2d = peopleMarkers2D[person.id];
+                    if (!marker2d) {
+                        marker2d = document.createElement('div');
+                        marker2d.className = 'person-dot-2d';
+                        document.getElementById('blueprint').appendChild(marker2d);
+                        peopleMarkers2D[person.id] = marker2d;
+                    }
+                    marker2d.style.display = 'block';
+                    marker2d.style.left = coords.x + '%';
+                    marker2d.style.top = coords.y + '%';
+                    
+                    if (person.status === "STAYING") {
+                        marker2d.style.backgroundColor = '#f97316';
+                        marker2d.style.boxShadow = '0 0 10px #f97316';
+                    } else {
+                        marker2d.style.backgroundColor = '#00f2ff';
+                        marker2d.style.boxShadow = '0 0 10px #00f2ff';
+                    }
+                } else {
+                    if (peopleMarkers2D[person.id]) {
+                        peopleMarkers2D[person.id].style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        // Simulate AI analysis data refresh
+        setInterval(async () => {
+            try {
+                const r = await fetch(`${API_BASE}/camera/analysis`);
+                const data = await r.json();
+                // We could update the UI here with real data if we had a feed
+            } catch(e) {}
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Staff | Task Command</title>
+    <style>
+        :root {
+            --red: #ff4d4d;
+            --yellow: #ffd93d;
+            --green: #6bcb77;
+            --dark: #1a1a1a;
+            --card: #2d2d2d;
+            --text: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--dark);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .header {
+            margin-bottom: 2rem;
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        .priority-RED { background-color: var(--red); color: white; }
+        .priority-YELLOW { background-color: var(--yellow); color: black; }
+        
+        .task-card {
+            background-color: var(--card);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-left: 5px solid transparent;
+        }
+        .task-card.RED { border-left-color: var(--red); }
+        .task-card.YELLOW { border-left-color: var(--yellow); }
+
+        .room-number {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .guest-info {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+        .urgency-timer {
+            font-size: 1.5rem;
+            color: var(--red);
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .btn {
+            background-color: var(--green);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { background-color: #555; cursor: not-allowed; }
+
+        .empty-state {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <div class="header">
+            <h1>Aegis Staff</h1>
+            <p id="staff-id">ID: STAFF_123</p>
+        </div>
+
+        <div id="task-container">
+            <div class="empty-state">
+                <p>Waiting for AI assignment...</p>
+            </div>
+        </div>
+    <script>
+        // Ensure dynamic host for web deployment
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const API_URL = `${protocol}//${host}`;        const staffId = "STAFF_123";
+        let currentTask = null;
+
+        async function fetchTask() {
+            try {
+                const response = await fetch(`${API_URL}/staff/${staffId}/next_task`);
+                const data = await response.json();
+                if (data.id) {
+                    currentTask = data;
+                    renderTask();
+                }
+            } catch (e) { console.error("API Offline"); }
+        }
+
+        async function completeTask() {
+            const btn = document.querySelector('.btn');
+            btn.disabled = true;
+            btn.innerText = "Syncing...";
+
+            try {
+                const response = await fetch(`${API_URL}/staff/${staffId}/complete`, { method: 'POST' });
+                if (response.ok) {
+                    currentTask = null;
+                    document.getElementById('task-container').innerHTML = `
+                        <div style="color: var(--green)">
+                            <h2>Rescued Successfully!</h2>
+                            <p>Standby for next task...</p>
+                        </div>
+                    `;
+                    setTimeout(fetchTask, 3000);
+                }
+            } catch (e) { 
+                alert("Sync Error");
+                btn.disabled = false;
+                btn.innerText = "Rescue Complete";
+            }
+        }
+
+        function renderTask() {
+            const container = document.getElementById('task-container');
+            container.innerHTML = `
+                <div class="task-card ${currentTask.priority}">
+                    <div class="status-badge priority-${currentTask.priority}">${currentTask.priority} CRITICAL</div>
+                    <div class="room-number">Room ${currentTask.room}</div>
+                    <div class="guest-info">Guest: ${currentTask.guest}</div>
+                    <div class="guest-info">Lang: ${currentTask.language}</div>
+                    <div class="urgency-timer" id="timer">Reach in ${currentTask.must_reach_mins}m</div>
+                    <button class="btn" onclick="completeTask()">RESCUE COMPLETE</button>
+                </div>
+            `;
+        }
+
+        // Poll for tasks every 5 seconds if none assigned
+        setInterval(() => {
+            if (!currentTask) fetchTask();
+        }, 5000);
+
+        fetchTask();
+    </script>
+</body>
+</html>

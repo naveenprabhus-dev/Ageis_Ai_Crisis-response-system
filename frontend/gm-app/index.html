@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis AI | GM Command Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        accent: '#10b981',
+                        danger: '#f43f5e',
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="digital_twin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --panel: rgba(30, 41, 59, 0.4);
+            --accent: #10b981; /* Neon Green */
+            --red: #f43f5e;
+            --green: #10b981;
+            --yellow: #fbbf24;
+            --glow: rgba(16, 185, 129, 0.15);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #001A12, #050505 60%);
+            color: #f1f5f9;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.9); /* More opaque for better contrast */
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 1rem;
+        }
+        .sidebar-btn.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+        .floor-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            background: rgba(255,255,255,0.02);
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .room-cell {
+            aspect-ratio: 1;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .room-cell:hover { transform: scale(1.1); z-index: 10; border-color: white; }
+        .room-crisis { background: rgba(239, 68, 68, 0.4); border-color: var(--red); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* Scannline Effect */
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(99, 102, 241, 0.1);
+            position: absolute;
+            top: 0;
+            animation: scan 4s linear infinite;
+        }
+        @keyframes scan { from { top: 0; } to { top: 100%; } }
+        #digital-twin-container canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .backlight {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--glow), transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .neon-border {
+            box-shadow: 0 0 15px var(--glow);
+            border: 1px solid rgba(16, 185, 129, 0.2) !important;
+        }
+        .vision-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .detection-box {
+            position: absolute;
+            border: 2px solid var(--red);
+            background: rgba(244, 63, 94, 0.1);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 4px;
+            transition: all 0.5s linear;
+        }
+        .detection-label {
+            position: absolute;
+            top: -18px;
+            left: -2px;
+            background: var(--red);
+            padding: 2px 6px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+    <!-- Top Header -->
+    <header class="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-panel/50 backdrop-blur-md shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-accent rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-accent/20">A</div>
+            <div>
+                <h1 class="text-lg font-black tracking-tighter">AEGIS <span class="text-accent">GM</span></h1>
+                <p class="text-[9px] uppercase tracking-widest font-bold text-slate-500">Crisis Orchestrator v2.4</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-8">
+            <div class="text-right">
+                <p class="text-[9px] uppercase font-bold text-slate-500">System State</p>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span class="text-xs font-bold uppercase">Ready</span>
+                </div>
+            </div>
+            <div id="clock" class="text-sm font-bold font-mono bg-black/20 px-4 py-2 rounded-lg border border-white/5">00:00:00</div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex overflow-hidden">
+        <!-- Sidebar -->
+        <nav class="w-[72px] border-r border-white/5 flex flex-col items-center py-6 gap-2 shrink-0">
+            <button onclick="switchTab('dashboard')" class="sidebar-btn active w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-dashboard" title="Dashboard">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">HUB</span>
+            </button>
+            <button onclick="switchTab('vision')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-vision" title="Vision AI">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">CAMS</span>
+            </button>
+            <button onclick="switchTab('forecasting')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-forecasting" title="LSTM Predictions">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">LSTM</span>
+            </button>
+            <button onclick="switchTab('staff')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-staff" title="Staff Command">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">STAFF</span>
+            </button>
+            <button onclick="switchTab('reports')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-reports" title="Reports">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">LOGS</span>
+            </button>
+            <!-- Gemma Badge at bottom -->
+            <div class="mt-auto flex flex-col items-center gap-1">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                    <span class="text-[8px] font-black text-emerald-400">GM</span>
+                </div>
+                <span class="text-[6px] text-slate-600 uppercase font-bold">Gemma</span>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <div class="flex-grow flex flex-col p-8 gap-8 overflow-y-auto">
+            
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="grid grid-cols-4 gap-6 h-full min-h-[600px]">
+                <!-- Left: 3D Twin (expanded to maximum) -->
+                <div class="col-span-3 glass-panel p-6 flex flex-col gap-4 relative min-h-0">
+                    <div class="flex items-center justify-between z-20 shrink-0">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Building Real-Time State (3D Twin)</h3>
+                    </div>
+                    
+                    <div id="digital-twin-container" class="flex-1 min-h-0 rounded-xl overflow-hidden bg-slate-950 relative border border-white/5" style="pointer-events: auto;">
+                        <!-- Digital Twin: High-level architectural context and spatial awareness -->
+                        
+                        <!-- 3D Room Hover Tooltip -->
+                        <div id="twin-tooltip" class="absolute hidden z-50 glass-panel p-4 border-l-4 border-accent shadow-2xl transition-opacity duration-200 pointer-events-none" style="min-width: 220px;">
+                            <div class="flex justify-between items-center border-b border-white/10 pb-2 mb-2">
+                                <span id="tt-room" class="font-black text-white text-sm">ROOM 204</span>
+                                <span id="tt-floor" class="text-[9px] font-bold text-slate-500 uppercase bg-black/50 px-2 py-0.5 rounded">Floor 2</span>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <!-- Guest Info -->
+                                <div>
+                                    <p class="text-[9px] text-slate-500 font-bold uppercase mb-1">Guest Status</p>
+                                    <div class="flex items-center gap-2">
+                                        <div id="tt-guest-dot" class="w-2 h-2 rounded-full bg-slate-600"></div>
+                                        <span id="tt-guest-name" class="text-[11px] font-bold text-white">No Guest Registered</span>
+                                    </div>
+                                    <p id="tt-guest-vuln" class="text-[9px] text-red-400 font-bold mt-1 hidden">⚠️ Vulnerable Occupant</p>
+                                </div>
+
+                                <!-- Staff Info -->
+                                <div>
+                                    <p class="text-[9px] text-slate-500 font-bold uppercase mb-1">Staff Deployment</p>
+                                    <div class="flex items-center gap-2">
+                                        <div id="tt-staff-dot" class="w-2 h-2 rounded-full bg-slate-600"></div>
+                                        <span id="tt-staff-id" class="text-[11px] font-bold text-white">Unassigned</span>
+                                    </div>
+                                    <p id="tt-staff-eta" class="text-[9px] text-accent font-bold mt-1 hidden">ETA: 2m</p>
+                                </div>
+                                
+                                <!-- Evac Status -->
+                                <div class="pt-2 border-t border-white/5">
+                                    <span id="tt-evac-status" class="px-2 py-1 bg-black/50 border border-white/10 rounded text-[9px] font-bold uppercase text-slate-400">Monitoring</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar: KPI Grid & SOS Intercepts -->
+                <div class="col-span-1 flex flex-col gap-4 overflow-hidden h-full">
+                    <!-- KPI Grid (2x2) -->
+                    <div class="grid grid-cols-2 gap-3 shrink-0">
+                        <!-- Evacuation Progress -->
+                        <div class="glass-panel p-3 flex flex-col justify-between">
+                            <p class="text-[8px] font-bold text-slate-500 uppercase mb-1">Evac Progress</p>
+                            <div class="flex items-end gap-1">
+                                <span id="evac-pct" class="text-lg font-black">0.0</span>
+                                <span class="text-[8px] font-bold text-accent mb-0.5">%</span>
+                            </div>
+                            <div class="w-full h-1 bg-white/5 rounded-full mt-2">
+                                <div id="evac-bar" class="h-full bg-accent transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Alerts -->
+                        <div class="glass-panel p-3">
+                            <p class="text-[8px] font-bold text-slate-500 uppercase mb-1">Pending</p>
+                            <span id="pending-count" class="text-xl font-black text-red-500">0</span>
+                        </div>
+
+                        <!-- Active Rescues -->
+                        <div class="glass-panel p-3">
+                            <p class="text-[8px] font-bold text-slate-500 uppercase mb-1">Active</p>
+                            <span id="active-rescues" class="text-xl font-black text-white">0</span>
+                        </div>
+
+                        <!-- Completed Rescues -->
+                        <div class="glass-panel p-3">
+                            <p class="text-[8px] font-bold text-slate-500 uppercase mb-1">Completed</p>
+                            <span id="completed-count" class="text-xl font-black text-green-500">0</span>
+                        </div>
+                    </div>
+
+                    <!-- SOS Intercepts (Gemini) -->
+                    <div class="glass-panel p-6 flex flex-col gap-4 flex-grow overflow-hidden">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live SOS Intercepts</h3>
+                            <span class="text-[8px] font-black uppercase text-emerald-400">✨ Gemma AI</span>
+                        </div>
+                        <div id="sos-log" class="flex-grow space-y-3 overflow-y-auto pr-2">
+                            <p class="text-[9px] italic text-slate-600 text-center py-4">Monitoring...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vision AI View -->
+            <div id="view-vision" class="hidden flex flex-col gap-6 h-full overflow-y-auto">
+                <div class="flex items-center justify-between shrink-0">
+                    <div>
+                        <h2 class="text-2xl font-black text-white tracking-tighter">VISION AI CORE // <span class="text-accent">ACTIVE</span></h2>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Powered by Gemma-Vision-2B // Real-time Neural Analysis</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="glass-panel px-4 py-2 text-[10px] font-bold border-l-4 border-accent">CAMERA FEED: SECURE</div>
+                        <div class="glass-panel px-4 py-2 text-[10px] font-bold border-l-4 border-emerald-400">Gemma-Vision: RUNNING</div>
+                    </div>
+                </div>
+
+                <div class="flex gap-6 min-h-0 overflow-y-auto">
+                    <!-- Camera Grid (2/3 width, 2x3 grid) -->
+                    <div class="flex-grow grid grid-cols-3 auto-rows-[180px] gap-3" id="camera-grid">
+                        <!-- Feeds rendered by JS -->
+                        <div class="glass-panel col-span-3 flex items-center justify-center text-slate-600 text-xs animate-pulse">
+                            Loading Gemma-Vision feeds...
+                        </div>
+                    </div>
+                    <!-- Right Sidebar -->
+                    <div class="w-64 shrink-0 flex flex-col gap-4">
+                        <div class="glass-panel p-5 flex flex-col gap-4">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Vision Core Stats</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                                    <span class="text-[10px] text-slate-500 font-bold uppercase">Engine</span>
+                                    <span class="text-[11px] font-black text-emerald-400">Gemma-2B</span>
+                                </div>
+                                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                                    <span class="text-[10px] text-slate-500 font-bold uppercase">Feeds</span>
+                                    <span class="text-[11px] font-black">6 Active</span>
+                                </div>
+                                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                                    <span class="text-[10px] text-slate-500 font-bold uppercase">Fire Zones</span>
+                                    <span class="text-[11px] font-black text-red-500" id="vision-fire-zones">—</span>
+                                </div>
+                                <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                                    <span class="text-[10px] text-slate-500 font-bold uppercase">Objects</span>
+                                    <span class="text-[11px] font-black" id="vision-total-objects">—</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-500 font-bold uppercase">Staff Tracking</span>
+                                    <span class="text-[11px] font-black text-accent">ENABLED</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Live Gemma Advisory Panel -->
+                        <div class="glass-panel p-4 border-l-4 border-emerald-500 flex flex-col gap-2 flex-grow">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                                <p class="text-[8px] text-emerald-400 font-black uppercase tracking-wider">Gemma Vision Advisory</p>
+                            </div>
+                            <p class="text-[10px] text-white leading-snug" id="vision-gemma-advisory">Initializing neural scan...</p>
+                            <div class="mt-auto pt-3 border-t border-white/5 space-y-1">
+                                <p class="text-[8px] text-slate-600 uppercase font-bold">Legend</p>
+                                <div class="flex items-center gap-2 text-[9px]"><span class="w-2 h-2 rounded bg-red-500"></span><span class="text-slate-400">Fire Detected</span></div>
+                                <div class="flex items-center gap-2 text-[9px]"><span class="w-2 h-2 rounded bg-slate-400"></span><span class="text-slate-400">Smoke / Obscuration</span></div>
+                                <div class="flex items-center gap-2 text-[9px]"><span class="w-2 h-2 rounded bg-yellow-400"></span><span class="text-slate-400">Person Moving</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Forecasting View -->
+            <div id="view-forecasting" class="hidden flex flex-col gap-8">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-black tracking-tighter uppercase">LSTM Forecasting // <span class="text-accent">Predictive Intelligence</span></h2>
+                    <div class="glass-panel px-4 py-2 text-[10px] font-black uppercase text-accent animate-pulse">Running spread_sim_v4.2</div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-8">
+                    <div class="col-span-2 flex flex-col gap-8">
+                        <div class="glass-panel p-8 h-[350px]">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Predicted Fire Spread (T+15m)</h3>
+                            <canvas id="fire-forecast-chart"></canvas>
+                        </div>
+                        <div class="glass-panel p-8 h-[350px]">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Evacuation Bottleneck Probability</h3>
+                            <canvas id="bottleneck-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-8">
+                        <div class="glass-panel p-8 border-l-4 border-accent">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">LSTM Decision Logic</h3>
+                            <div class="space-y-4">
+                                <div class="p-3 bg-white/5 rounded-lg border border-white/10">
+                                    <p class="text-[10px] font-black text-white uppercase">Proactive Reroute</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Stairwell B likely compromised in 4.5m. Rerouting Floor 3 units to West Exit.</p>
+                                </div>
+                                <div class="p-3 bg-red-900/10 rounded-lg border border-red-500/20">
+                                    <p class="text-[10px] font-black text-red-400 uppercase">Flashover Prediction</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">High probability (82%) of flashover in Room 204 within 2 minutes.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-4 flex flex-col items-center">
+                             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Confidence Distribution</h3>
+                             <div class="flex items-center justify-center relative w-24 h-24">
+                                 <div class="w-20 h-20 rounded-full border-2 border-accent/20 border-t-accent animate-spin"></div>
+                                 <span class="absolute text-lg font-black">94<span class="text-[8px]">%</span></span>
+                             </div>
+                             <p class="text-[8px] text-slate-500 mt-2 uppercase font-bold">AI Prediction Reliability</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff View -->
+            <div id="view-staff" class="hidden flex flex-col gap-8 h-full">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-black tracking-tighter uppercase">Command Center: <span class="text-accent">Human Movement</span></h2>
+                    <div class="flex items-center gap-4">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase">Auto Assign Mode</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" value="" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-4 gap-8 flex-grow overflow-hidden">
+                    <!-- LEFT: Task List -->
+                    <div class="flex flex-col gap-4 overflow-y-auto pr-2">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Task Queue</h3>
+                        <div id="staff-grid" class="flex flex-col gap-4">
+                            <!-- Staff cards here -->
+                        </div>
+                    </div>
+
+                    <!-- CENTER: Live Map -->
+                    <div class="col-span-2 glass-panel relative overflow-hidden flex flex-col border border-white/5">
+                        <div class="p-4 border-b border-white/5 flex justify-between items-center bg-black/20">
+                            <div class="flex items-center gap-4">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase" id="map-title">LIVE OPERATIONS MAP - FLOOR 2</span>
+                                <!-- Floor Switcher UI -->
+                                <div class="flex bg-black/40 p-1 rounded-lg border border-white/5 ml-2">
+                                    <button onclick="setMapFloor(0)" id="btn-fl-0" class="px-2 py-0.5 text-[9px] font-bold rounded-md transition-colors hover:bg-white/5">GRND</button>
+                                    <button onclick="setMapFloor(1)" id="btn-fl-1" class="px-2 py-0.5 text-[9px] font-bold rounded-md transition-colors hover:bg-white/5">F1</button>
+                                    <button onclick="setMapFloor(2)" id="btn-fl-2" class="px-2 py-0.5 text-[9px] font-bold rounded-md transition-colors hover:bg-white/5">F2</button>
+                                    <button onclick="setMapFloor(3)" id="btn-fl-3" class="px-2 py-0.5 text-[9px] font-bold rounded-md transition-colors hover:bg-white/5">F3</button>
+                                    <button onclick="setMapFloor(4)" id="btn-fl-4" class="px-2 py-0.5 text-[9px] font-bold rounded-md transition-colors hover:bg-white/5">F4</button>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex items-center gap-2"><span class="w-2 h-2 bg-yellow-400 rounded-full"></span><span class="text-[9px] uppercase font-bold text-slate-500">Staff</span></div>
+                                <div class="flex items-center gap-2"><span class="w-2 h-2 bg-white/20 rounded-full"></span><span class="text-[9px] uppercase font-bold text-slate-500">Guest</span></div>
+                                <div class="flex items-center gap-2"><span class="w-2 h-2 bg-red-500/50 rounded-full"></span><span class="text-[9px] uppercase font-bold text-slate-500">Danger</span></div>
+                            </div>
+                        </div>
+                        <div class="flex-grow relative bg-slate-900/30">
+                            <canvas id="ops-map" class="w-full h-full"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT: AI Task Engine -->
+                    <div class="flex flex-col gap-4 overflow-hidden">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">AI Task Engine</h3>
+                        <div class="glass-panel p-6 flex flex-col gap-4 flex-grow overflow-hidden border border-white/5">
+                            <div class="flex items-center gap-2 text-accent">
+                                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <span class="text-[10px] font-black uppercase tracking-tighter">Optimizing Deployments...</span>
+                            </div>
+                            <div id="ai-engine-log" class="text-[10px] font-medium text-slate-400 space-y-3 overflow-y-auto h-full pr-2 flex flex-col-reverse">
+                                <!-- Logs will be dynamically injected here -->
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports View -->
+            <div id="view-reports" class="hidden flex flex-col gap-8">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-black tracking-tighter uppercase">Mission Analytics // <span class="text-accent">Post-Crisis Intelligence</span></h2>
+                    <button class="glass-panel px-6 py-2 text-[10px] font-black uppercase hover:bg-accent transition-all neon-border">Download Report (PDF)</button>
+                </div>
+
+                <!-- Metrics -->
+                <div class="grid grid-cols-4 gap-6">
+                    <div class="glass-panel p-6 border-l-4 border-accent">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Evacuation Success</p>
+                        <span class="text-3xl font-black">94.2<span class="text-xs text-accent">%</span></span>
+                    </div>
+                    <div class="glass-panel p-6 border-l-4 border-yellow-400">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Avg Response Time</p>
+                        <span class="text-3xl font-black">2.3<span class="text-xs text-yellow-400"> min</span></span>
+                    </div>
+                    <div class="glass-panel p-6 border-l-4 border-accent">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">People Rescued</p>
+                        <span class="text-3xl font-black">128</span>
+                    </div>
+                    <div class="glass-panel p-6 border-l-4 border-red-500">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Critical Incidents</p>
+                        <span class="text-3xl font-black">06</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-8">
+                    <div class="col-span-2 flex flex-col gap-8">
+                        <div class="glass-panel p-8 h-[300px]">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Evacuation Progress Timeline</h3>
+                            <canvas id="evac-chart"></canvas>
+                        </div>
+                        <div class="glass-panel p-8 h-[300px]">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Staff Unit Efficiency</h3>
+                            <canvas id="performance-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-8">
+                        <div class="glass-panel p-8 flex flex-col gap-6">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Mission Insights</h3>
+                            <div class="space-y-6">
+                                <div class="bg-accent/5 p-4 rounded-xl border border-accent/10">
+                                    <p class="text-[11px] font-bold text-accent mb-2 uppercase">Congestion Detected</p>
+                                    <p class="text-[11px] text-slate-400 leading-relaxed">Minor delay in Floor 2 Stairwell L due to high guest density. Recommendation: Add secondary emergency exit in west wing.</p>
+                                </div>
+                                <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                                    <p class="text-[11px] font-bold text-white mb-2 uppercase">Staff Optimization</p>
+                                    <p class="text-[11px] text-slate-400 leading-relaxed">AI Dynamic Reassignment improved response time by 23% compared to static assignment models.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-8 flex-grow">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Risk Heatmap Replay</h3>
+                            <div class="aspect-square bg-slate-900/50 rounded-xl flex items-center justify-center relative overflow-hidden">
+                                <canvas id="heatmap-replay-canvas" class="absolute inset-0 w-full h-full opacity-60"></canvas>
+                                <span class="text-[10px] font-black uppercase text-slate-600 relative z-10">Replay Timeline Active</span>
+                                <div class="absolute bottom-4 left-4 right-4 h-1 bg-white/10 rounded-full z-10">
+                                    <div class="w-2/3 h-full bg-red-500 rounded-full animate-pulse"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentTab = 'dashboard';
+        let ws;
+        let hotelState = {};
+        let twin;
+        let evacChart, performanceChart, fireForecastChart, bottleneckChart;
+        function init() {
+            twin = new DigitalTwin('digital-twin-container');
+            initWebSocket();
+            startTime();
+            initCharts();
+            initMap();
+            initVisionSimulation();
+            initForecastingCharts();
+            setMapFloor(2); // Set default floor state
+        }
+
+        let mapCanvas, mapCtx;
+        function initMap() {
+            mapCanvas = document.getElementById('ops-map');
+            if (!mapCanvas) return;
+            mapCtx = mapCanvas.getContext('2d');
+            window.addEventListener('resize', resizeMap);
+            resizeMap();
+            animateMap();
+        }
+
+        function resizeMap() {
+            if (!mapCanvas || !mapCanvas.parentElement) return;
+            const rect = mapCanvas.parentElement.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                mapCanvas.width = rect.width;
+                mapCanvas.height = rect.height;
+            }
+        }
+
+        let currentMapFloor = 2; // Default to F2
+
+        function setMapFloor(floor) {
+            currentMapFloor = floor;
+            
+            // Update UI buttons
+            for(let i=0; i<=4; i++) {
+                const btn = document.getElementById(`btn-fl-${i}`);
+                if (btn) {
+                    if (i === floor) {
+                        btn.classList.add('bg-accent', 'text-black');
+                        btn.classList.remove('hover:bg-white/5');
+                    } else {
+                        btn.classList.remove('bg-accent', 'text-black');
+                        btn.classList.add('hover:bg-white/5');
+                    }
+                }
+            }
+            
+            // Update Title
+            const title = document.getElementById('map-title');
+            if (title) {
+                title.innerText = floor === 0 ? 'LIVE OPERATIONS MAP - GRND FLOOR' : `LIVE OPERATIONS MAP - FLOOR ${floor}`;
+            }
+        }
+        let guestPositions = [];
+        let staffPositions = [
+            { id: "S-01", name: "S-01", floor: 0, homeFloor: 0, color: "#fbbf24", status: "IDLE" },
+            { id: "S-02", name: "S-02", floor: 0, homeFloor: 0, color: "#fbbf24", status: "IDLE" },
+            { id: "S-03", name: "S-03", floor: 0, homeFloor: 0, color: "#fbbf24", status: "IDLE" },
+            { id: "S-04", name: "S-04", floor: 1, homeFloor: 1, color: "#fbbf24", status: "IDLE" },
+            { id: "S-05", name: "S-05", floor: 1, homeFloor: 1, color: "#fbbf24", status: "IDLE" },
+            { id: "S-06", name: "S-06", floor: 2, homeFloor: 2, color: "#fbbf24", status: "IDLE" },
+            { id: "S-07", name: "S-07", floor: 3, homeFloor: 3, color: "#fbbf24", status: "IDLE" },
+            { id: "S-08", name: "S-08", floor: 3, homeFloor: 3, color: "#fbbf24", status: "IDLE" },
+            { id: "S-09", name: "S-09", floor: 3, homeFloor: 3, color: "#fbbf24", status: "IDLE" },
+            { id: "S-10", name: "S-10", floor: 4, homeFloor: 4, color: "#fbbf24", status: "IDLE" }
+        ];
+
+        function animateMap() {
+            if (!mapCtx || currentTab !== 'staff') {
+                requestAnimationFrame(animateMap);
+                return;
+            }
+
+            mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+            
+            const w = mapCanvas.width;
+            const h = mapCanvas.height;
+            const padX = w * 0.15;
+            const padY = h * 0.2;
+            const floorW = w - 2 * padX;
+            const floorH = h - 2 * padY;
+            const corridorH = floorH * 0.3;
+            const roomH = (floorH - corridorH) / 2;
+            const roomW = floorW / 5;
+
+            // Draw Corridors
+            mapCtx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+            mapCtx.fillRect(padX, padY + roomH, floorW, corridorH);
+            
+            // Draw Rooms
+            mapCtx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+            mapCtx.lineWidth = 1;
+            mapCtx.textAlign = 'center';
+            mapCtx.textBaseline = 'middle';
+            mapCtx.font = '9px Inter';
+            
+            const getRoomColor = (roomId) => {
+                if (!lastAssessment) return 'rgba(15, 23, 42, 0.9)'; // Default dark
+                const fireZones = lastAssessment.fire_spread ? lastAssessment.fire_spread.etas || {} : {};
+                const floor = parseInt(roomId.slice(0, -2));
+                const floorRisk = lastAssessment.zone_risk_scores ? lastAssessment.zone_risk_scores[floor] || 0 : 0;
+                
+                // If the room is actively on fire or in immediate path (ETA < 5m)
+                if (fireZones[roomId] !== undefined) {
+                    const eta = fireZones[roomId];
+                    if (eta < 5) return 'rgba(239, 68, 68, 0.6)'; // Red
+                    return 'rgba(245, 158, 11, 0.6)'; // Orange/Yellow
+                }
+                // If the floor is high risk or guest is actively evacuating
+                const guestData = lastAssessment.hotel_data?.guests?.[roomId];
+                if (floorRisk > 60 || (guestData && guestData.status === 'EVACUATING')) return 'rgba(245, 158, 11, 0.3)'; // Faded Yellow
+                // Safe / monitored
+                return 'rgba(16, 185, 129, 0.2)'; // Green
+            };
+
+            for(let i=0; i<5; i++) {
+                // Top row
+                const rxTop = padX + i * roomW;
+                const ryTop = padY;
+                const roomNumTop = i + 1;
+                const roomIdTop = `${currentMapFloor}${roomNumTop < 10 ? '0'+roomNumTop : roomNumTop}`;
+                
+                mapCtx.fillStyle = getRoomColor(roomIdTop);
+                mapCtx.fillRect(rxTop, ryTop, roomW, roomH);
+                mapCtx.strokeRect(rxTop, ryTop, roomW, roomH);
+                mapCtx.fillStyle = 'rgba(255,255,255,0.8)';
+                mapCtx.fillText(roomIdTop, rxTop + roomW/2, ryTop + roomH/2);
+
+                // Bottom row
+                const ryBot = padY + roomH + corridorH;
+                const roomNumBot = i + 6;
+                const roomIdBot = `${currentMapFloor}${roomNumBot < 10 ? '0'+roomNumBot : roomNumBot}`;
+                
+                mapCtx.fillStyle = getRoomColor(roomIdBot);
+                mapCtx.fillRect(rxTop, ryBot, roomW, roomH);
+                mapCtx.strokeRect(rxTop, ryBot, roomW, roomH);
+                mapCtx.fillStyle = 'rgba(255,255,255,0.8)';
+                mapCtx.fillText(roomIdBot, rxTop + roomW/2, ryBot + roomH/2);
+            }
+
+            // Draw Exits
+            mapCtx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+            mapCtx.fillRect(padX - 50, padY + roomH, 50, corridorH);
+            mapCtx.fillRect(padX + floorW, padY + roomH, 50, corridorH);
+            mapCtx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+            mapCtx.fillText("EXIT L", padX - 25, padY + roomH + corridorH/2);
+            mapCtx.fillText("EXIT R", padX + floorW + 25, padY + roomH + corridorH/2);
+
+            // Draw Danger Zones (dynamic based on assessment)
+            if (lastAssessment && lastAssessment.fire_spread && lastAssessment.fire_spread.actual_fire_zones) {
+                const fireRooms = lastAssessment.fire_spread.actual_fire_zones.filter(id => parseInt(id.slice(0, -2)) === currentMapFloor);
+                
+                fireRooms.forEach(roomId => {
+                    const rNum = parseInt(roomId.slice(-2));
+                    const rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
+                    const isTop = rNum <= 5;
+                    const fx = padX + rIdx * roomW + roomW / 2;
+                    const fy = isTop ? padY + roomH/2 : padY + roomH + corridorH + roomH/2;
+
+                    mapCtx.fillStyle = 'rgba(244, 63, 94, 0.25)';
+                    mapCtx.beginPath();
+                    mapCtx.arc(fx, fy, 35, 0, Math.PI * 2);
+                    mapCtx.fill();
+                    mapCtx.strokeStyle = 'rgba(244, 63, 94, 0.6)';
+                    mapCtx.stroke();
+                    mapCtx.fillStyle = 'rgba(244, 63, 94, 1)';
+                    mapCtx.fillText("FIRE", fx, fy - 15);
+                });
+            }
+
+            // Draw Staff & Paths
+            staffPositions.forEach((s, idx) => {
+                if (s.floor !== currentMapFloor) return; // Only draw staff on this floor
+                
+                // If they have a target room, calculate exact pixel position
+                if (s.targetRoom) {
+                    const rNum = parseInt(s.targetRoom.slice(-2));
+                    let rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
+                    let isTop = rNum <= 5;
+                    s.tx = padX + rIdx * roomW + roomW / 2;
+                    s.ty = isTop ? padY + roomH + corridorH/2 : padY + roomH + corridorH/2; // Stand outside the room in the corridor
+                } else if (!s.tx || s.tx < padX || s.tx > padX + floorW) {
+                    s.tx = padX + Math.random() * floorW;
+                    s.ty = padY + roomH + corridorH/2; // wander in corridor
+                }
+
+                // Initialize starting positions if not set
+                if (!s.x) {
+                    s.x = padX + 20 + (idx * 60);
+                    s.y = s.ty || (padY + roomH + corridorH/2);
+                }
+
+                s.x += (s.tx - s.x) * 0.02;
+                s.y += (s.ty - s.y) * 0.02;
+
+                if (!s.targetRoom && Math.abs(s.x - s.tx) < 2 && Math.abs(s.y - s.ty) < 2) {
+                    s.tx = padX + Math.random() * floorW;
+                    let rand = Math.random();
+                    if (rand < 0.3) s.ty = padY + roomH/2;
+                    else if (rand < 0.6) s.ty = padY + roomH + corridorH + roomH/2;
+                    else s.ty = padY + roomH + corridorH/2;
+                }
+
+                // Draw Path
+                mapCtx.setLineDash([3, 4]);
+                mapCtx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+                mapCtx.beginPath();
+                mapCtx.moveTo(s.x, s.y);
+                mapCtx.lineTo(s.tx, s.ty);
+                mapCtx.stroke();
+                mapCtx.setLineDash([]);
+
+                // Draw Dot
+                mapCtx.fillStyle = s.color;
+                mapCtx.beginPath();
+                mapCtx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+                mapCtx.fill();
+                
+                // Shadow/Glow
+                mapCtx.shadowBlur = 12;
+                mapCtx.shadowColor = s.color;
+                mapCtx.stroke();
+                mapCtx.shadowBlur = 0;
+
+                // Label
+                mapCtx.fillStyle = 'white';
+                mapCtx.font = 'bold 9px Inter';
+                mapCtx.fillText(s.name || s.id, s.x, s.y - 12);
+                if (s.status) {
+                    mapCtx.fillStyle = 'rgba(255,255,255,0.6)';
+                    mapCtx.font = '7px Inter';
+                    mapCtx.fillText(s.status.toLowerCase(), s.x, s.y + 12);
+                }
+            });
+
+
+            requestAnimationFrame(animateMap);
+        }
+
+        function initVisionSimulation() {
+            const container = document.getElementById('camera-grid');
+            if (!container) return;
+            
+            setInterval(() => {
+                if (currentTab !== 'vision') return;
+                const boxes = container.querySelectorAll('.detection-box');
+                boxes.forEach(box => {
+                    const top = parseFloat(box.style.top);
+                    const left = parseFloat(box.style.left);
+                    box.style.top = (top + (Math.random() - 0.5) * 1.5) + '%';
+                    box.style.left = (left + (Math.random() - 0.5) * 1.5) + '%';
+                });
+            }, 200);
+        }
+
+        function setView(mode) {
+            const grid = document.getElementById('building-matrix');
+            const twinCont = document.getElementById('digital-twin-container');
+            const btnGrid = document.getElementById('view-btn-grid');
+            const btn3d = document.getElementById('view-btn-3d');
+
+            if (mode === 'grid') {
+                grid.classList.remove('hidden');
+                twinCont.classList.add('hidden');
+                btnGrid.classList.add('bg-accent');
+                btn3d.classList.remove('bg-accent');
+            } else {
+                grid.classList.add('hidden');
+                twinCont.classList.remove('hidden');
+                btnGrid.classList.remove('bg-accent');
+                btn3d.classList.add('bg-accent');
+                
+                if (!twin) {
+                    twin = new DigitalTwin('digital-twin-container');
+                }
+                setTimeout(() => {
+                    twin.onResize();
+                    twin.renderer.render(twin.scene, twin.camera);
+                }, 100);
+            }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById(`btn-${tab}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            
+            ['dashboard', 'vision', 'forecasting', 'staff', 'reports'].forEach(t => {
+                const el = document.getElementById(`view-${t}`);
+                if (el) el.classList.toggle('hidden', t !== tab);
+            });
+
+            if (tab === 'staff' && typeof resizeMap === 'function') setTimeout(resizeMap, 100);
+            if (tab === 'vision') fetchAndRenderCameraFeeds();
+        }
+        window.switchTab = switchTab;
+
+        let lastAssessment = null;
+
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/gm`;
+            console.log(`Connecting to GM WebSocket at ${wsUrl}`);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log("Connected to GM WebSocket");
+            };
+
+            ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    
+                    // Debug logging
+                    if (data.type !== 'PEOPLE_UPDATE') { // avoid spamming people update too much
+                        console.log("Received GM update:", data);
+                    }
+                    
+                    if (data.type === 'SYNC' || data.type === 'AI_ASSESSMENT') {
+                        if (data.stats) updateStats(data.stats);
+                        if (data.log) updateTacticalLog(data.log);
+                        
+                        if (data.assessment) {
+                            // Assign new object reference
+                            lastAssessment = Object.assign({}, data.assessment);
+                            hotelState = Object.assign({}, data.assessment.hotel_data || {});
+                            
+                            updateStaff(data.assessment.staff_assignments);
+                            updateForecasting(data.assessment);
+                            updateSOSLog(data.assessment.recent_sos);
+                            
+                            if (twin) twin.updateState(data.assessment);
+                        }
+                        if (data.camera) updateVisionAI(data.camera);
+                    } else if (data.type === 'PEOPLE_UPDATE') {
+                        // Optional: Handle live people movement if needed for 2D map
+                    }
+                } catch (err) {
+                    console.error("Error parsing GM WebSocket message:", err);
+                }
+            };
+            
+            ws.onerror = (err) => {
+                console.error("GM WebSocket Error:", err);
+            };
+            
+            ws.onclose = () => {
+                console.warn("Disconnected / Reconnecting to GM WebSocket...");
+                setTimeout(initWebSocket, 2000);
+            };
+        }
+
+        function updateStats(stats) {
+            if (!stats) return;
+            document.getElementById('evac-pct').innerText = stats.evacuation_percentage;
+            document.getElementById('evac-bar').style.width = stats.evacuation_percentage + '%';
+            document.getElementById('active-rescues').innerText = stats.active_rescues;
+            document.getElementById('pending-count').innerText = stats.pending_count;
+            document.getElementById('completed-count').innerText = stats.completed_count;
+            
+            // Update Evacuation Timeline Chart
+            if (evacChart && stats.history && stats.history.length > 0) {
+                evacChart.data.labels = stats.history.map(h => h.time);
+                evacChart.data.datasets[0].data = stats.history.map(h => h.percentage);
+                evacChart.update('none'); // silent update
+            }
+            
+            // Update Staff Efficiency Chart
+            if (performanceChart && stats.efficiency) {
+                const labels = Object.keys(stats.efficiency);
+                const data = Object.values(stats.efficiency);
+                if (labels.length > 0) {
+                    performanceChart.data.labels = labels;
+                    performanceChart.data.datasets[0].data = data;
+                    performanceChart.update();
+                }
+            }
+        }
+
+        function renderBuilding(riskScores = {}) {
+            const matrix = document.getElementById('building-matrix');
+            if (!matrix) return;
+            matrix.innerHTML = '';
+            
+            const hotelData = hotelState.hotel || {};
+
+            for (let f = 0; f < 5; f++) {
+                const floorDiv = document.createElement('div');
+                floorDiv.className = 'flex items-center gap-4';
+                
+                const label = document.createElement('div');
+                label.className = 'w-12 text-[10px] font-bold text-slate-500';
+                label.innerText = f === 0 ? 'GRND' : `F${f}`;
+                floorDiv.appendChild(label);
+                
+                const roomsDiv = document.createElement('div');
+                roomsDiv.className = 'flex gap-1 flex-grow';
+                
+                for (let r = 1; r <= 10; r++) {
+                    const roomId = `${f}${r < 10 ? '0'+r : r}`;
+                    const roomInfo = hotelData[f] ? hotelData[f][roomId] : null;
+                    const isStaticHighAlert = roomInfo && roomInfo.is_high_alert;
+
+                    const room = document.createElement('div');
+                    room.className = 'flex-grow h-12 glass-panel flex flex-col items-center justify-center text-[10px] border-l-4 transition-all duration-500 relative';
+                    
+                    // Risk color logic
+                    let risk = riskScores[f] || 0;
+                    const fireZones = lastAssessment?.fire_spread?.etas || {};
+                    const isRoomOnFire = fireZones[roomId] !== undefined && fireZones[roomId] < 5;
+
+                    if (isRoomOnFire) {
+                        room.style.borderColor = '#f43f5e';
+                        room.style.backgroundColor = 'rgba(244, 63, 94, 0.4)';
+                        room.classList.add('animate-pulse');
+                    }
+                    else if (risk > 50 || fireZones[roomId] !== undefined) {
+                        room.style.borderColor = '#fbbf24';
+                        room.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                        room.classList.remove('animate-pulse');
+                    }
+                    else if (isStaticHighAlert) {
+                        room.style.borderColor = '#facc15'; // Amber/Gold for high alert
+                        room.style.backgroundColor = 'rgba(250, 204, 21, 0.1)';
+                        room.classList.remove('animate-pulse');
+                    }
+                    else {
+                        room.style.borderColor = '#10b981';
+                        room.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+                        room.classList.remove('animate-pulse');
+                    }
+                    
+                    room.innerHTML = `
+                        <span class="font-bold">${r}</span>
+                        ${isStaticHighAlert ? '<span class="text-[6px] text-yellow-500 font-black mt-0.5">ALERT</span>' : ''}
+                    `;
+                    
+                    roomsDiv.appendChild(room);
+                }
+                floorDiv.appendChild(roomsDiv);
+                matrix.appendChild(floorDiv);
+            }
+        }
+
+        function updateStaff(assignments) {
+            const grid = document.getElementById('staff-grid');
+            const aiLog = document.getElementById('ai-engine-log');
+            if (!grid) return;
+            
+            if (!assignments || Object.keys(assignments).length === 0) {
+                grid.innerHTML = '<div class="text-[10px] text-slate-600 italic p-4 text-center">No active rescues... system monitoring.</div>';
+                return;
+            }
+            
+            grid.innerHTML = '';
+
+            // Sync 2D Map Staff Positions
+            // We keep all 10 staff but update their status from assignments
+            staffPositions.forEach(s => {
+                if (!assignments[s.id]) {
+                    s.status = "IDLE";
+                    s.targetRoom = null;
+                    s.floor = s.homeFloor; // RETURN TO HOME FLOOR
+                }
+            });
+
+            const validIds = ["S-01", "S-02", "S-03", "S-04", "S-05", "S-06", "S-07", "S-08", "S-09", "S-10"];
+
+            Object.entries(assignments).forEach(([sid, data]) => {
+                if (!validIds.includes(sid)) return; // FILTER OUT OLD IDS
+
+                let s = staffPositions.find(p => p.id === sid);
+                if (s) {
+                    s.name = sid; // Keep synced with ID
+                    s.floor = parseInt(data.floor);
+                    s.targetRoom = data.room;
+                    s.status = data.status;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'glass-panel p-6 flex flex-col gap-4 border-l-4 ' + 
+                                (data.status === 'CRITICAL' ? 'border-red-500' : 'border-accent');
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">${data.staff_name || sid}</p>
+                            <h4 class="font-bold text-white">${data.task}</h4>
+                        </div>
+                        <span class="px-2 py-1 rounded text-[8px] font-black uppercase ${data.status === 'CRITICAL' ? 'bg-red-500/20 text-red-500' : 'bg-accent/20 text-accent'}">
+                            ${data.status}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-4 text-[10px] text-slate-400">
+                        <div class="flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span>FL ${data.floor} | RM ${data.room}</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>ETA: ${data.eta}m</span>
+                        </div>
+                    </div>
+                    <button onclick="completeTask('${sid}')" class="w-full py-2 bg-white/5 hover:bg-accent hover:text-black text-[9px] font-black uppercase rounded-lg transition-all border border-white/5">Mark Complete</button>
+                    ${data.status === 'CRITICAL' ? `
+                        <div class="bg-red-500/10 border border-red-500/20 p-2 rounded text-[9px] text-red-400 font-bold flex items-center gap-2">
+                            <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                            PREDICTIVE REROUTE
+                        </div>
+                    ` : ''}
+                    ${data.is_vulnerable ? `
+                        <div class="bg-yellow-500/10 border border-yellow-500/20 p-2 rounded text-[9px] text-yellow-400 font-bold flex items-center gap-2">
+                            <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                            VULNERABLE GUEST
+                        </div>
+                    ` : ''}
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function completeTask(staffId) {
+            try {
+                const res = await fetch(`/staff/${staffId}/complete`, { method: 'POST' });
+                if (res.ok) {
+                    console.log(`Task completed by ${staffId}`);
+                }
+            } catch (err) {
+                console.error("Error completing task:", err);
+            }
+        }
+
+        function updateTacticalLog(log) {
+            const aiLogEl = document.getElementById('ai-engine-log');
+            if (!log) return;
+
+            // Update Staff View (Chronological narrative, detailed)
+            if (aiLogEl) {
+                aiLogEl.innerHTML = log.map(entry => {
+                    let borderColor = 'border-white/10';
+                    let titleColor = 'text-white';
+                    
+                    if (entry.category === 'INITIATION') {
+                        borderColor = 'border-red-500'; titleColor = 'text-red-500 animate-pulse';
+                    } else if (entry.category === 'PREDICTION') {
+                        borderColor = 'border-yellow-500'; titleColor = 'text-yellow-500';
+                    } else if (entry.category === 'RESCUE') {
+                        borderColor = 'border-accent'; titleColor = 'text-accent';
+                    } else if (entry.category === 'PRE-MEASURE') {
+                        borderColor = 'border-blue-500'; titleColor = 'text-blue-400';
+                    } else if (entry.category === 'STRATEGIC') {
+                        borderColor = 'border-purple-500'; titleColor = 'text-purple-400 font-black italic';
+                    }
+
+                    return `
+                        <div class="border-l-2 ${borderColor} pl-3 py-1 transition-all">
+                            <p class="${titleColor} font-bold text-[11px]">${entry.category || 'SYSTEM'}</p>
+                            <p class="text-[9px] text-slate-400">${entry.msg}</p>
+                            <p class="text-[8px] text-white/20 mt-1">${entry.time}</p>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function updateSOSLog(sosEvents) {
+            const sosLog = document.getElementById('sos-log');
+            if (!sosLog) return;
+            if (!sosEvents || sosEvents.length === 0) {
+                sosLog.innerHTML = '<p class="text-[9px] italic text-slate-600 text-center py-4">Monitoring...</p>';
+                return;
+            }
+
+            sosLog.innerHTML = sosEvents.map(sos => {
+                const langColor = sos.detected_language === 'English' ? 'text-slate-400' : 'text-blue-400';
+                const sentimentIcon = sos.sentiment === 'Critical' ? '🔴' : '🟡';
+                return `
+                    <div class="glass-panel p-4 border border-white/5 bg-slate-900/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[9px] font-bold text-white uppercase">${sos.guest} // RM ${sos.room}</span>
+                            <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-blue-900/30 ${langColor}">
+                                🌐 ${sos.detected_language || 'UNKNOWN'}
+                            </span>
+                        </div>
+                        <p class="text-[12px] font-medium text-white mb-2 italic">"${sos.original_message}"</p>
+                        
+                        <div class="space-y-2 mt-3 border-t border-white/5 pt-2">
+                            <div class="flex items-center justify-between text-[8px] font-black uppercase">
+                                <span class="text-slate-500">Gemma Translation</span>
+                                <span class="text-accent">${sentimentIcon} ${sos.sentiment || 'URGENT'}</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-white bg-white/5 p-2 rounded">
+                                ${sos.translation || sos.original_message}
+                            </p>
+                            ${sos.reasoning ? `
+                                <div class="bg-blue-500/10 p-2 rounded border border-blue-500/20">
+                                    <p class="text-[8px] text-blue-400 font-black uppercase mb-1">✨ Gemma Reasoning</p>
+                                    <p class="text-[9px] text-slate-300 leading-tight">${sos.reasoning}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <p class="text-[7px] text-slate-600 mt-2 text-right uppercase tracking-widest">${sos.time.split('T')[1].substring(0, 8)}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Fetch camera feeds from REST API (fallback when WebSocket camera data is missing)
+        async function fetchAndRenderCameraFeeds() {
+            try {
+                const res = await fetch('/camera/feeds');
+                if (!res.ok) return;
+                const data = await res.json();
+                updateVisionAI(data);
+        } catch(e) { console.warn('Camera fetch fallback failed:', e); }
+        }
+
+        // Poll camera feeds every 3 seconds when on Vision tab
+        setInterval(() => {
+            if (currentTab === 'vision') fetchAndRenderCameraFeeds();
+        }, 3000);
+
+        function updateVisionAI(cameraData) {
+            const grid = document.getElementById('camera-grid');
+            if (!grid) return;
+
+            if (!cameraData || !cameraData.feeds || (Array.isArray(cameraData.feeds) && cameraData.feeds.length === 0)) {
+                grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-600 italic text-[10px]">No thermal feeds available. Systems may be offline.</div>';
+                return;
+            }
+
+            let feedsToRender = Array.isArray(cameraData.feeds) ? [...cameraData.feeds] : Object.values(cameraData.feeds);
+            feedsToRender = feedsToRender.slice(0, 5);
+            feedsToRender.push({
+                floor: 'STAIRS',
+                status: 'SAFE',
+                zone_label: 'CLEAR',
+                detections: [],
+                gemma_vision: { reasoning: "Scene baseline thermal scan clear. No abnormal heat signatures detected.", inference_time_ms: 12, engine: "Gemma-Thermal-2B" }
+            });
+
+            // Update sidebar stats
+            const totalObjects = cameraData.detections ? cameraData.detections.length : 0;
+            const fireZones = feedsToRender.filter(f => f.status === 'CRITICAL').length;
+            const objEl = document.getElementById('vision-total-objects');
+            const fzEl = document.getElementById('vision-fire-zones');
+            if (objEl) objEl.textContent = totalObjects;
+            if (fzEl) fzEl.textContent = fireZones > 0 ? `${fireZones} Hot-Spot${fireZones > 1 ? 's' : ''}` : 'None';
+
+            // Update Gemma advisory with the most critical feed's reasoning
+            const critFeed = feedsToRender.find(f => f.status === 'CRITICAL') || feedsToRender[0];
+            const advisory = document.getElementById('vision-gemma-advisory');
+            if (advisory && critFeed && critFeed.gemma_vision) {
+                advisory.textContent = critFeed.gemma_vision.reasoning || 'Thermal baseline stable.';
+            }
+
+            grid.innerHTML = feedsToRender.map((feed, index) => {
+                const camId = `CAM_${(index + 1).toString().padStart(2, '0')}`;
+                const locStr = feed.floor === 'STAIRS' ? 'STAIRS_B' : (feed.floor === 0 ? 'LOBBY' : `FL_0${feed.floor}`);
+                
+                // Thermal Cold Background (Deep Purple/Blue)
+                let bgClass = 'bg-[#0a0a20]';
+                let alertColor = 'text-slate-400';
+                let borderGlow = '';
+                
+                if (feed.status === 'CRITICAL') {
+                    borderGlow = 'border-red-500/40 shadow-red-500/20 shadow-lg';
+                    alertColor = 'text-red-400';
+                } else if (feed.status === 'DANGER') {
+                    alertColor = 'text-yellow-400';
+                    borderGlow = 'border-yellow-500/30';
+                }
+
+                const boxesHtml = feed.detections.map(d => {
+                    const left = (d.box[0] / 320) * 100;
+                    const top = (d.box[1] / 180) * 100;
+                    const width = (d.box[2] / 320) * 100;
+                    const height = (d.box[3] / 180) * 100;
+
+                    // Thermal Heat Signature Blobs
+                    let thermalBlob = '';
+                    if (d.label === 'fire') {
+                        thermalBlob = `<div style="position:absolute; top:${top-5}%; left:${left-5}%; width:${width+10}%; height:${height+10}%; background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,0,0.7) 30%, rgba(255,100,0,0.4) 60%, transparent 80%); filter: blur(12px); mix-blend-mode: screen;"></div>`;
+                    } else if (d.label === 'smoke') {
+                        thermalBlob = `<div style="position:absolute; top:${top}%; left:${left}%; width:${width}%; height:${height}%; background: radial-gradient(circle, rgba(100,100,255,0.4) 0%, transparent 70%); filter: blur(15px); mix-blend-mode: screen;"></div>`;
+                    } else {
+                        // Human Heat
+                        thermalBlob = `<div style="position:absolute; top:${top}%; left:${left}%; width:${width}%; height:${height}%; background: radial-gradient(circle, rgba(255,165,0,0.6) 0%, rgba(200,0,0,0.3) 60%, transparent 80%); filter: blur(6px); mix-blend-mode: screen;"></div>`;
+                    }
+
+                    return `
+                        ${thermalBlob}
+                        <div class="detection-box" style="top:${top}%;left:${left}%;width:${width}%;height:${height}%;border-color:${d.color}; border-width: 1px; z-index: 10;">
+                            <div class="detection-label" style="background:${d.color};color:#000; font-size: 7px;">${d.label.toUpperCase()}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                const gv = feed.gemma_vision || {};
+                const bgPatternStyle = `background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 15px 15px;`;
+
+                return `
+                    <div class="relative overflow-hidden rounded-xl border ${borderGlow || 'border-white/5'} ${bgClass} transition-all duration-300 hover:border-accent/40 group" style="${bgPatternStyle}">
+                        <!-- Camera Feed UI Overlay -->
+                        <div class="vision-overlay absolute inset-0 pointer-events-none">
+                            ${boxesHtml}
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20"></div>
+                        </div>
+
+                        <!-- Top Bar -->
+                        <div class="absolute top-0 left-0 right-0 flex justify-between items-start p-2 z-20">
+                            <div class="flex gap-1 items-center">
+                                <span class="px-1 py-0.5 bg-emerald-500 text-[6px] font-black rounded">THERMAL</span>
+                                <span class="px-1.5 py-0.5 bg-black/60 text-[7px] font-bold rounded backdrop-blur-sm">${camId} // ${locStr}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[8px] font-black uppercase ${alertColor} block">${feed.zone_label || 'CLEAR'}</span>
+                                <span class="text-[6px] text-slate-500 font-mono">${gv.engine || 'Gemma-Thermal'}</span>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Reasoning (Gemma) -->
+                        <div class="absolute bottom-0 left-0 right-0 p-2 z-20">
+                            <div class="bg-black/70 backdrop-blur-sm p-1.5 rounded border-l-2 border-emerald-500">
+                                <div class="flex justify-between mb-0.5">
+                                    <span class="text-[6px] text-emerald-400 font-black uppercase tracking-wider">Gemma Thermal-Vision</span>
+                                    <span class="text-[6px] text-slate-600">${gv.inference_time_ms || '--'}ms</span>
+                                </div>
+                                <p class="text-[7.5px] text-slate-200 leading-tight line-clamp-2">${gv.reasoning || 'Scanning...'}</p>
+                            </div>
+                        </div>
+
+                        <!-- Reticle -->
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style="opacity:0.15;">
+                            <div style="width:30px;height:30px;border: 1px solid white; border-radius: 50%; opacity: 0.2;"></div>
+                            <div style="position:absolute; top:50%; left:50%; width:10px; height:1px; background:white; transform:translate(-50%,-50%);"></div>
+                            <div style="position:absolute; top:50%; left:50%; width:1px; height:10px; background:white; transform:translate(-50%,-50%);"></div>
+                        </div>
+
+                        <div class="scanline opacity-10 pointer-events-none"></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function initForecastingCharts() {
+            // Fire Spread Chart
+            const fireCtx = document.getElementById('fire-forecast-chart').getContext('2d');
+            fireForecastChart = new Chart(fireCtx, {
+                type: 'line',
+                data: {
+                    labels: ['+0m', '+5m', '+10m', '+15m', '+20m'],
+                    datasets: [{
+                        label: 'Probable Breach %',
+                        data: [0, 0, 0, 0, 0],
+                        borderColor: '#f43f5e',
+                        backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+
+            // Bottleneck Chart
+            const bottleCtx = document.getElementById('bottleneck-chart').getContext('2d');
+            bottleneckChart = new Chart(bottleCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Exit A', 'Stairs L', 'Stairs R', 'Elevator Bank'],
+                    datasets: [{
+                        label: 'Saturation Level',
+                        data: [10, 10, 10, 10],
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        function updateForecasting(assessment) {
+            if (!assessment || !fireForecastChart) return;
+            
+            // Sync guest positions for 2D map
+            if (assessment.self_rescuing) {
+                let activeRescues = new Set(assessment.self_rescuing.map(r => r.room));
+                guestPositions = guestPositions.filter(g => activeRescues.has(g.room));
+                
+                assessment.self_rescuing.forEach(res => {
+                    const roomId = res.room;
+                    if (!roomId) return;
+                    if (!guestPositions.find(g => g.room === roomId)) {
+                        guestPositions.push({ room: roomId, floor: parseInt(roomId.slice(0, -2)) });
+                    }
+                });
+            }
+            
+            // Calculate future spread from actual LSTM prediction data
+            let forecastData = [0, 0, 0, 0, 0];
+            if (assessment.fire_spread && assessment.fire_spread.etas) {
+                const etas = Object.values(assessment.fire_spread.etas);
+                if (etas.length > 0) {
+                    forecastData = [0, 5, 10, 15, 20].map(t => {
+                        const threatened = etas.filter(eta => eta <= t).length;
+                        return Math.min(100, (threatened / 20) * 100); // Normalize to 20 rooms threatened
+                    });
+                }
+            } else {
+                const avgRisk = Object.values(assessment.zone_risk_scores || {}).reduce((a, b) => a + b, 0) / 5;
+                forecastData = [avgRisk, avgRisk*1.2, avgRisk*1.5, avgRisk*1.8, Math.min(100, avgRisk*2.2)];
+            }
+            
+            fireForecastChart.data.datasets[0].data = forecastData;
+            fireForecastChart.update();
+
+            if (bottleneckChart && assessment.evac_time) {
+                // Dynamic bottlenecking based on blocked exits and estimated time
+                const blocked = assessment.evac_time.blocked_exits || 0;
+                const time = assessment.evac_time.estimated_time_mins || 10;
+                const baseSat = Math.min(95, (time / 20) * 100);
+                
+                // Exit A, Stairs L, Stairs R, Elevator Bank
+                const sat = [
+                    Math.min(100, baseSat + (blocked > 0 ? 30 : 0)), // Exit A takes overflow
+                    Math.min(100, baseSat + (blocked > 1 ? 40 : 10)), // Stairs L
+                    Math.min(100, baseSat + (blocked > 2 ? 50 : 5)),  // Stairs R
+                    98 // Elevators are always heavily bottlenecked/disabled
+                ];
+                bottleneckChart.data.datasets[0].data = sat;
+                bottleneckChart.update();
+            } else if (bottleneckChart) {
+                // If no evac_time yet, keep it at baseline
+                bottleneckChart.data.datasets[0].data = [10, 15, 12, 98];
+                bottleneckChart.update();
+            }
+
+            // Update Heatmap Canvas
+            const heatCanvas = document.getElementById('heatmap-replay-canvas');
+            if (heatCanvas && assessment.zone_risk_scores) {
+                const ctx = heatCanvas.getContext('2d');
+                // Set canvas size to match layout
+                heatCanvas.width = heatCanvas.clientWidth;
+                heatCanvas.height = heatCanvas.clientHeight;
+                
+                const w = heatCanvas.width;
+                const h = heatCanvas.height;
+                const floorH = h / 5;
+                
+                ctx.clearRect(0, 0, w, h);
+                
+                // Draw floors 4 down to 0 with labels
+                for(let f=4; f>=0; f--) {
+                    const risk = assessment.zone_risk_scores[f] || 0;
+                    const y = (4-f) * floorH;
+                    
+                    let color = 'rgba(16, 185, 129, 0.05)';
+                    if (risk > 70) color = `rgba(244, 63, 94, ${0.1 + risk/100})`;
+                    else if (risk > 40) color = `rgba(251, 191, 36, ${0.1 + risk/100})`;
+                    else if (risk > 10) color = `rgba(16, 185, 129, ${0.1 + risk/100})`;
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(0, y, w, floorH);
+                    
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.fillRect(10, y + 10, 45, floorH - 20);
+                    
+                    ctx.fillStyle = risk > 50 ? '#fff' : 'rgba(255,255,255,0.6)';
+                    ctx.font = 'bold 10px Inter';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(f === 0 ? 'GRND' : `FL-0${f}`, 15, y + floorH/2 + 4);
+                    
+                    ctx.textAlign = 'right';
+                    ctx.font = '9px Inter';
+                    ctx.fillStyle = risk > 70 ? '#f43f5e' : (risk > 40 ? '#fbbf24' : '#10b981');
+                    ctx.fillText(`${risk}% RISK`, w - 15, y + floorH/2 + 4);
+
+                    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                    ctx.strokeRect(0, y, w, floorH);
+                }
+            }
+        }
+
+
+        function startTime() {
+            setInterval(() => {
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            }, 1000);
+        }
+
+        function initCharts() {
+            // Evacuation Chart
+            const evacCtx = document.getElementById('evac-chart').getContext('2d');
+            evacChart = new Chart(evacCtx, {
+                type: 'line',
+                data: {
+                    labels: ['T-30m', 'T-20m', 'T-10m', 'T-5m', 'Now'],
+                    datasets: [{
+                        label: 'Evacuation %',
+                        data: [5, 18, 42, 78, 94],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+
+            // Performance Chart
+            const perfCtx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(perfCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['S-01', 'S-02', 'S-03', 'S-04', 'S-05', 'S-06', 'S-07'],
+                    datasets: [{
+                        label: 'Tasks Completed',
+                        data: [12, 19, 15, 8, 22, 14, 18],
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: { 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        window.onload = () => {
+            init();
+            
+            // Re-render once layout is settled
+            setTimeout(() => {
+                if (twin) twin.onResize();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

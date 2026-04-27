@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis | AI Vision Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #050507;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        .ai-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .bbox {
+            position: absolute;
+            border: 2px solid #ff4d4d;
+            box-shadow: 0 0 10px #ff4d4d;
+        }
+        .label {
+            position: absolute;
+            top: -22px;
+            left: -2px;
+            background: #ff4d4d;
+            color: black;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            white-space: nowrap;
+        }
+        .confidence {
+            font-size: 8px;
+            opacity: 0.8;
+            margin-left: 4px;
+        }
+        .telemetry-card {
+            background: rgba(18, 18, 26, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="p-10 flex flex-col items-center">
+    <div class="max-w-4xl w-full">
+        <div class="flex justify-between items-end mb-10">
+            <div>
+                <h1 class="text-4xl font-black mb-2 glow-text">AI_VISION_ANALYSER</h1>
+                <p class="text-gray-500 uppercase tracking-widest text-xs">Aegis Neural Network v4.2 • Real-time Fire/Smoke Segmentation</p>
+            </div>
+            <div class="text-right">
+                <div class="text-[10px] text-gray-500 mb-1">PROCESSING_CORE</div>
+                <div class="text-xl font-bold text-green-500">GPU_ACCELERATED</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-6">
+                <div class="video-container" id="video-box">
+                    <!-- Background "Video" (Image for demo) -->
+                    <img src="https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80" class="w-full h-full object-cover">
+                    
+                    <!-- AI Overlays -->
+                    <div class="ai-overlay">
+                        <!-- Fire Box -->
+                        <div class="bbox" style="top: 30%; left: 20%; width: 30%; height: 40%;">
+                            <div class="label">FIRE <span class="confidence">98.4%</span></div>
+                        </div>
+                        <!-- Smoke Box -->
+                        <div class="bbox" style="top: 10%; left: 10%; width: 80%; height: 60%; border-color: #ffd93d; box-shadow: 0 0 10px #ffd93d;">
+                            <div class="label" style="background: #ffd93d;">SMOKE_DENSITY_HIGH <span class="confidence">89.1%</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Scanning Line Animation -->
+                    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/10 to-transparent h-20 w-full animate-pulse" style="animation-duration: 2s;"></div>
+                </div>
+
+                <div class="telemetry-card grid grid-cols-3 gap-6">
+                    <div>
+                        <p class="text-[10px] text-gray-500 uppercase mb-2">Hazard Level</p>
+                        <p class="text-3xl font-black text-red-500">EXTREME</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-gray-500 uppercase mb-2">Growth Rate</p>
+                        <p class="text-3xl font-black text-yellow-500">+12%<span class="text-xs font-normal">/min</span></p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-gray-500 uppercase mb-2">Oxygen Level</p>
+                        <p class="text-3xl font-black text-cyan-400">14.2%</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="telemetry-card">
+                    <h3 class="font-bold text-sm mb-4 border-b border-white/10 pb-2">NEURAL_OUTPUT</h3>
+                    <div class="space-y-4 font-mono text-xs">
+                        <div>
+                            <p class="text-gray-500">[0.001s] Ingesting Frame_8422</p>
+                            <p class="text-green-500">[0.042s] Detected Ignition_Source_Primary</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500">[0.088s] Segmenting Smoke_Cluster_Alpha</p>
+                            <p class="text-cyan-400">[0.102s] Calculating Propagation_Vector</p>
+                        </div>
+                        <div class="p-2 bg-red-500/10 border border-red-500/20 rounded">
+                            <p class="text-red-500 font-bold">WARNING: Flashover likely in 04:30 mins</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="telemetry-card">
+                    <h3 class="font-bold text-sm mb-4">EVACUATION_ADVICE</h3>
+                    <ul class="text-xs space-y-2 text-gray-300">
+                        <li class="flex gap-2"><span>→</span> Prioritize Sector Delta extraction</li>
+                        <li class="flex gap-2"><span>→</span> Deploy suppression in Corridor 4</li>
+                        <li class="flex gap-2"><span>→</span> Reroute Guest 402 via Stairs B</li>
+                    </ul>
+                </div>
+
+                <button onclick="window.history.back()" class="w-full bg-white/5 hover:bg-white/10 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">
+                    Return to Command HUD
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
