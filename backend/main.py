@@ -281,6 +281,35 @@ class CrisisModel(BaseModel):
     guest: str
     sos_message: str = ""
 
+@app.get("/simulate")
+async def simulate():
+    """
+    Cloud-compatible simulation endpoint.
+    Runs one full AI brain assessment cycle and returns the result as JSON.
+    Useful for health-checks, demos, and integration tests on Render / Cloud Run.
+    """
+    wx_data     = await weather.get_threat()
+    camera_data = camera.get_all_feeds(engine.people_tracking)
+    hotel_data  = engine.get_full_hotel()
+    fire_zones  = engine.get_fire_zones()
+    camera.set_crisis_zones(fire_zones)
+
+    assessment = brain.analyze(
+        vision_data  = camera_data,
+        hotel_data   = hotel_data,
+        weather_data = wx_data,
+        staff_data   = {"staff_locations": manager.staff_locations},
+        sos_events   = engine.get_recent_sos(),
+    )
+    return JSONResponse({
+        "status":     "ok",
+        "assessment": assessment,
+        "stats":      engine.get_gm_stats(),
+        "weather":    wx_data,
+        "queue":      queue.get_stats(),
+    })
+
+
 @app.post("/simulate/crisis")
 async def simulate_crisis(crisis: CrisisModel):
     # Pass raw message through Gemma AI for language detection and translation
