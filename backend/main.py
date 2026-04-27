@@ -10,6 +10,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import uvicorn
 
 from task_engine import TaskEngine
 from ai_brain import AiBrain
@@ -530,3 +531,13 @@ async def websocket_endpoint(ws: WebSocket, role: str):
                 })
     except WebSocketDisconnect:
         manager.disconnect(ws, role)
+
+# ──────────────────────────────────────────────────────────────────────
+#  Production Entrypoint (Render / Cloud Run)
+# ──────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # Read port from environment (Render injects this)
+    port = int(os.environ.get("PORT", 8000))
+    
+    print(f"🚀 Aegis AI Backend starting on port {port}...")
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
