@@ -528,6 +528,7 @@ async def detect_lang(msg: dict):
 # ──────────────────────────────────────────────────────────────────────
 @app.websocket("/ws/{role}")
 async def websocket_endpoint(ws: WebSocket, role: str):
+    await ws.accept()
     await manager.connect(ws, role)
     try:
         if role == "gm":
