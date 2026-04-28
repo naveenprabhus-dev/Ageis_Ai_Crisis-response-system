@@ -36,8 +36,15 @@ import os
 app = FastAPI(title="Aegis AI — Crisis Response Engine")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    allow_origins=["*"],
+    allow_credentials=False, # Changed to False to allow "*" origins
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+@app.get("/test")
+async def test_route():
+    return {"status": "ok", "message": "Backend is reachable"}
 
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
@@ -92,7 +99,7 @@ class ConnectionManager:
         self.staff_locations: dict = {}
 
     async def connect(self, ws: WebSocket, role: str):
-        await ws.accept()
+        # WebSocket is already accepted in the endpoint
         getattr(self, role if role in ("gm", "staff", "guest") else "guest").append(ws)
 
     def disconnect(self, ws: WebSocket, role: str):
