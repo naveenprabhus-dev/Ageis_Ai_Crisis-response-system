@@ -333,7 +333,7 @@
 
         function initWebSocket() {
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const BASE_URL = isLocal ? "http://localhost:8000" : "https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app";
+            const BASE_URL = isLocal ? "http://localhost:8000" : "https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app";
             const WS_URL = BASE_URL.replace("http", "ws");
 
             ws = new WebSocket(`${WS_URL}/ws/gm`);
@@ -519,7 +519,7 @@
 
         async function completeTask(staffId) {
             try {
-            const res = await fetch(`https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app/staff/${staffId}/complete`, {method: 'POST'});
+            const res = await fetch(`${BASE_URL}/staff/${staffId}/complete`, {method: 'POST'});
                 if (res.ok) {
                     console.log(`Task completed by ${staffId}`);
                 }
@@ -602,7 +602,7 @@
         // Fetch camera feeds from REST API (fallback when WebSocket camera data is missing)
         async function fetchAndRenderCameraFeeds() {
             try {
-                const res = await fetch('https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app/camera/feeds');
+                const res = await fetch(`${BASE_URL}/camera/feeds`);
                 if (!res.ok) return;
                 const data = await res.json();
                 updateVisionAI(data);

@@ -164,7 +164,7 @@
         <script>
             async function triggerCloudSimulation() {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 
                 // Show a loading alert
                 alert("Triggering AI Crisis Simulation on Cloud...");
@@ -1168,7 +1168,7 @@
         async function completeTask(staffId) {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/staff/${staffId}/complete`, { method: 'POST' });
                 if (res.ok) {
                     console.log(`Task completed by ${staffId}`);
@@ -1280,7 +1280,7 @@
         async function fetchAndRenderSOS() {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/ai/sos_history`);
                 if (!res.ok) return;
                 const data = await res.json();
@@ -1292,7 +1292,7 @@
         async function fetchAndRenderCameraFeeds() {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/camera/feeds`);
                 if (!res.ok) return;
                 const data = await res.json();

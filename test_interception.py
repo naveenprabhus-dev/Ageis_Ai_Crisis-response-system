@@ -10,7 +10,7 @@ if sys.platform == "win32":
     except AttributeError:
         pass
 
-API_URL = "https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app"
+API_URL = "https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app"
 
 MESSAGES = [
     {"lang": "English", "msg": "There is a lot of smoke in the corridor! Please help!", "guest": "John Doe", "room": "205", "floor": 2},
