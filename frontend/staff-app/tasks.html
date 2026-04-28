@@ -586,8 +586,8 @@
                     currentAssessment = data;
                     updateTacticalUI(data);
                 } else if (data.type === 'GUEST_MESSAGE' && currentTask && data.room === currentTask.room) {
-                    appendChatMessage(data.translated_text, 'guest', data.original_text);
-                    voiceAlert("Guest says: " + data.translated_text);
+                    appendChatMessage(data.translation, 'guest', data.original_message);
+                    voiceAlert("Guest says: " + data.translation);
                 }
             };
 

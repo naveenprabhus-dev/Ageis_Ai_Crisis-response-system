@@ -98,8 +98,24 @@ class GemmaService:
     def translate_to_english(self, text: str, source_lang: str) -> str:
         """Translates guest language to English for staff."""
         if self.demo_mode:
-            # Look up in mock map
-            return self._mock_map.get(text, {"trans": text})["trans"]
+            # 1. Look up in mock map for exact matches
+            if text in self._mock_map:
+                return self._mock_map[text]["trans"]
+            
+            # 2. If it's already English, return it
+            detected = self.detect_language(text)
+            if detected == "English":
+                return text
+            
+            # 3. If it's a known language but unknown text, provide an "AI-Estimated" translation for the demo
+            generic_translations = {
+                "Hindi": "[AI Translation]: Emergency! I need immediate assistance in my room.",
+                "Tamil": "[AI Translation]: Alert! There is smoke/fire and I am trapped.",
+                "Telugu": "[AI Translation]: Help! I cannot exit the room, please send rescue.",
+                "Marathi": "[AI Translation]: Danger! Structural integrity compromised, help needed."
+            }
+            return generic_translations.get(detected, f"[AI Translation]: Distress signal received in {detected}.")
+            
         return text
 
     def translate_to_guest(self, text: str, target_lang: str) -> str:

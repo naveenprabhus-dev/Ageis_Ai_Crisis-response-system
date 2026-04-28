@@ -495,10 +495,17 @@ async def guest_to_staff(msg: GuestMessage):
     payload = {
         "type": "GUEST_MESSAGE",
         "room": msg.room,
-        "original_text": msg.text,
-        "translated_text": english_text,
+        "guest": f"Guest {msg.room}",
+        "original_message": msg.text,
+        "translation": english_text,
+        "detected_language": msg.lang,
+        "time": datetime.now().isoformat(),
         "timestamp": datetime.now().isoformat()
     }
+    
+    # Log into the Interception Core history
+    engine.recent_sos.appendleft(payload)
+    
     await manager.broadcast_staff(payload)
     await manager.broadcast_gm(payload)
     return {"status": "sent"}

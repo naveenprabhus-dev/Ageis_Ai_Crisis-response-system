@@ -497,11 +497,17 @@ class DigitalTwin {
                                   this.latestAssessment.self_rescuing.some(r => r.room === roomId));
 
             if (isEvacuating) {
-                // If evacuating, hide the dot to avoid cluttering "outside" the building
-                this.guestMeshes[gid].mesh.visible = false;
+                // MOVE TOWARDS NEAREST STAIRWELL
+                const floor = parseInt(roomId.slice(0, -2));
+                const roomNum = parseInt(roomId.slice(1));
+                const targetX = roomNum <= 5 ? -25 : 25; // Left or Right Stairwell
+                targetPos.set(targetX, (floor * 10) + 1, 0); // Position in central corridor
+                this.guestMeshes[gid].mesh.visible = true;
+                this.guestMeshes[gid].mesh.material.color.setHex(0x60a5fa); // Blue for evacuating
             } else {
                 targetPos.y += 0.5; // Inside Room (Centered)
                 this.guestMeshes[gid].mesh.visible = true;
+                this.guestMeshes[gid].mesh.material.color.setHex(0xffffff); // White for stationary
             }
             
             this.guestMeshes[gid].targetPos = targetPos;
@@ -525,8 +531,10 @@ class DigitalTwin {
             const mesh = this.rooms[roomId];
             if (mesh.userData.isRoomOnFire) {
                 mesh.scale.setScalar(1 + Math.sin(time * 0.01) * 0.05);
+                mesh.material.opacity = 0.6 + Math.sin(time * 0.01) * 0.3; // Rapid pulse
             } else if (mesh.userData.isStaticHighAlert) {
                 mesh.scale.setScalar(1 + Math.sin(time * 0.002) * 0.02);
+                mesh.material.opacity = 0.4 + Math.sin(time * 0.002) * 0.2; // Slow pulse
             } else {
                 mesh.scale.setScalar(1);
             }
