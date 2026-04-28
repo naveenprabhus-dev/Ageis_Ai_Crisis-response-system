@@ -148,6 +148,9 @@
             </div>
         </div>
         <div class="flex items-center gap-8">
+            <button onclick="triggerCloudSimulation()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest animate-pulse">
+                Simulate Crisis
+            </button>
             <div class="text-right">
                 <p class="text-[9px] uppercase font-bold text-slate-500">System State</p>
                 <div class="flex items-center gap-2">
@@ -157,6 +160,38 @@
             </div>
             <div id="clock" class="text-sm font-bold font-mono bg-black/20 px-4 py-2 rounded-lg border border-white/5">00:00:00</div>
         </div>
+        
+        <script>
+            async function triggerCloudSimulation() {
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                
+                // Show a loading alert
+                alert("Triggering AI Crisis Simulation on Cloud...");
+                
+                try {
+                    // Send a sample SOS to start the brain
+                    await fetch(`${baseUrl}/simulate/crisis`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            floor: 4,
+                            room: "401",
+                            guest: "Simulation User",
+                            sos_message: "URGENT: Fire detected in corridor near Room 401. Heavy smoke. Need AI evacuation guidance immediately."
+                        })
+                    });
+                    
+                    // Also ping the /simulate endpoint to wake up the brain loop
+                    await fetch(`${baseUrl}/simulate`);
+                    
+                    alert("Crisis Simulation Active! Check the Dashboard.");
+                } catch (err) {
+                    console.error("Simulation failed:", err);
+                    alert("Failed to trigger simulation. Is the backend public?");
+                }
+            }
+        </script>
     </header>
 
     <main class="flex-grow flex overflow-hidden">

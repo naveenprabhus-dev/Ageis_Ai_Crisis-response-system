@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aegis AI Backend Debugger</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; background: #111; color: #eee; }
+        .card { background: #222; padding: 20px; border-radius: 10px; border: 1px solid #444; }
+        .status { font-weight: bold; padding: 5px 10px; border-radius: 4px; }
+        .ok { background: #065f46; color: #34d399; }
+        .fail { background: #7f1d1d; color: #f87171; }
+        pre { background: #000; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Aegis AI Backend Debugger</h1>
+    <p>This tool checks the connectivity of your Cloud Run backend.</p>
+    
+    <div class="card">
+        <h3>Backend URL: <span id="url-display">...</span></h3>
+        <button onclick="testConnection()" style="padding: 10px 20px; cursor: pointer;">RUN TEST</button>
+        <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+        
+        <p>REST API Status: <span id="api-status" class="status">NOT TESTED</span></p>
+        <pre id="api-log">Waiting for test...</pre>
+        
+        <p>WebSocket Status: <span id="ws-status" class="status">NOT TESTED</span></p>
+        <pre id="ws-log">Waiting for test...</pre>
+    </div>
+
+    <script>
+        const BACKEND_URL = "https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app";
+        document.getElementById('url-display').innerText = BACKEND_URL;
+
+        async function testConnection() {
+            // Test REST
+            const apiStatus = document.getElementById('api-status');
+            const apiLog = document.getElementById('api-log');
+            apiStatus.innerText = "TESTING...";
+            apiStatus.className = "status";
+            
+            try {
+                const res = await fetch(BACKEND_URL + "/health");
+                const data = await res.json();
+                apiStatus.innerText = "ONLINE";
+                apiStatus.className = "status ok";
+                apiLog.innerText = JSON.stringify(data, null, 2);
+            } catch (err) {
+                apiStatus.innerText = "OFFLINE / BLOCKED";
+                apiStatus.className = "status fail";
+                apiLog.innerText = "ERROR: " + err.message + "\n\nPossible reasons:\n1. Service is still 'Private' (Needs allUsers permission)\n2. CORS is blocking this local test\n3. URL is incorrect";
+            }
+
+            // Test WebSocket
+            const wsStatus = document.getElementById('ws-status');
+            const wsLog = document.getElementById('ws-log');
+            wsStatus.innerText = "CONNECTING...";
+            
+            const wsUrl = BACKEND_URL.replace("https", "wss") + "/ws/gm";
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                wsStatus.innerText = "CONNECTED";
+                wsStatus.className = "status ok";
+                wsLog.innerText = "Connection established to: " + wsUrl;
+                ws.send(JSON.stringify({type: "PING"}));
+            };
+
+            ws.onmessage = (e) => {
+                wsLog.innerText += "\nReceived: " + e.data;
+            };
+
+            ws.onerror = (err) => {
+                wsStatus.innerText = "FAILED";
+                wsStatus.className = "status fail";
+                wsLog.innerText = "WebSocket Error. This usually means the backend rejected the connection or the path /ws/gm is 404.";
+            };
+        }
+    </script>
+</body>
+</html>

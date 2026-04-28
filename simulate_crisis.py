@@ -1,7 +1,7 @@
 import requests
 import sys
 
-API_URL = "http://localhost:8000"
+API_URL = "https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app"
 
 def trigger_crisis(floor, room_num, guest="Test User"):
     room = f"{floor}{room_num:02d}"
