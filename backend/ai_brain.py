@@ -393,13 +393,13 @@ class AiBrain:
             f = task["floor"]
             score = zone_scores.get(f, 0)
             
-            # Use LLM Decision Engine for modality assignment
-            guest_profile = hotel["guests"].get(task["room"], {})
-            # Pass floor risk score AND room status for more granular decision
-            fire_etas = fire_pred.get("etas", {})
-            room_fire_eta = fire_etas.get(task["room"], 99.0)
-            
-            mode, rationale = llm_engine.make_decision(guest_profile, score, room_fire_eta)
+            # FORCE DECISION: High Alert = Staff Rescue, else Self Rescue
+            if task["vulnerable"]:
+                mode = "STAFF_RESCUE"
+                rationale = "HIGH ALERT GUEST: Manual evacuation required."
+            else:
+                mode = "SELF_RESCUE"
+                rationale = "Healthy guest: Autonomous evacuation advised via safe route."
             
             fire_presence = score >= 80
             smoke_level = smoke_pred.get("floor_smoke_levels", {}).get(f, 0)
