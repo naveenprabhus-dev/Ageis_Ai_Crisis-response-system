@@ -180,7 +180,7 @@
                             floor: 4,
                             room: "401",
                             guest: "Simulation User",
-                            sos_message: "URGENT: Fire detected in corridor near Room 401. Heavy smoke. Need AI evacuation guidance immediately."
+                            sos_message: "मुझे मदद की ज़रूरत है, यहाँ धुआँ है!"
                         })
                     });
                     
@@ -1508,9 +1508,9 @@
                 forecastData = [maxRisk, maxRisk*1.2, maxRisk*1.4, maxRisk*1.6, Math.min(100, maxRisk*1.8)];
             }
             
-            // Ensure visibility even at low risk
+            // Ensure visibility even at low risk but CAP at 100%
             if (maxRisk > 0) {
-                forecastData = forecastData.map(v => Math.max(v, 5));
+                forecastData = forecastData.map(v => Math.min(100, Math.max(v, 5)));
             }
 
             fireForecastChart.data.datasets[0].data = forecastData;
@@ -1674,6 +1674,12 @@
                     isListening = true;
                     document.getElementById('btn-voice').classList.add('active', 'animate-pulse');
                     showGlobalNotification("Aegis Voice Assistant Active... Listening");
+                    
+                    // Voice Welcome
+                    const msg = new SpeechSynthesisUtterance("Ageis AI voice assistant active");
+                    msg.rate = 1.0;
+                    msg.pitch = 1.0;
+                    window.speechSynthesis.speak(msg);
                 };
 
                 recognition.onresult = (event) => {

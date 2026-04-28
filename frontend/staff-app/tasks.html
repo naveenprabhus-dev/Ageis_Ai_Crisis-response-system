@@ -357,7 +357,7 @@
         
         const WS_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'ws://localhost:8000/ws'
-            : 'wss://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app/ws';
+            : `wss://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app/ws/staff`;
         
         const canvas = document.getElementById('tactical-canvas');
         const ctx = canvas.getContext('2d');
@@ -622,7 +622,9 @@
         }
 
         function updateTacticalUI(data) {
-            const assessment = data.assessment;
+            const assessment = data.assessment || {};
+            if (!data.assessment && data.type !== 'GUEST_MESSAGE') return;
+            
             const tactical = data.tactical_data ? data.tactical_data[STAFF_ID] : null;
 
             // Update Risk Score
@@ -660,12 +662,13 @@
                 }
             }
 
-            // Update Hazard List every cycle to reflect live movement and smoke
-            const fires = assessment.fire_spread ? (assessment.fire_spread.actual_fire_zones || []) : [];
-            const smoke = assessment.smoke_spread ? (assessment.smoke_spread.floor_smoke_levels || {}) : {};
-            
-            const hazardList = document.getElementById('hazard-list');
-            if (hazardList) {
+            // Update Hazard List only when fresh assessment data arrives
+            if (assessment.fire_spread || assessment.smoke_spread) {
+                const fires = assessment.fire_spread ? (assessment.fire_spread.actual_fire_zones || []) : [];
+                const smoke = assessment.smoke_spread ? (assessment.smoke_spread.floor_smoke_levels || {}) : {};
+                
+                const hazardList = document.getElementById('hazard-list');
+                if (hazardList) {
                 hazardList.innerHTML = '';
                 
                 // Show Fires
@@ -708,6 +711,7 @@
                     hazardList.innerHTML = '<p class="text-[10px] text-slate-600 font-bold uppercase text-center py-4">No critical threats detected</p>';
                 }
             }
+        }
 
             // Removed old SOS update block since we now use real-time chat
         }
