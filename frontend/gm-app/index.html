@@ -164,7 +164,7 @@
         <script>
             async function triggerCloudSimulation() {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 
                 // Show a loading alert
                 alert("Triggering AI Crisis Simulation on Cloud...");
@@ -629,14 +629,25 @@
         let twin;
         let evacChart, performanceChart, fireForecastChart, bottleneckChart;
         function init() {
-            twin = new DigitalTwin('digital-twin-container');
+            // Critical Services first
             initWebSocket();
             startTime();
             initCharts();
             initMap();
             initVisionSimulation();
             initForecastingCharts();
-            setMapFloor(2); // Set default floor state
+            setMapFloor(2); 
+
+            // 3D Twin (Non-blocking)
+            try {
+                twin = new DigitalTwin('digital-twin-container');
+            } catch (e) {
+                console.error("3D Twin Initialization Failed:", e);
+                const container = document.getElementById('digital-twin-container');
+                if (container) {
+                    container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-700 text-xs font-black uppercase">3D Engine Offline - Reconnecting...</div>`;
+                }
+            }
         }
 
         let mapCanvas, mapCtx;
@@ -1186,7 +1197,7 @@
         async function completeTask(staffId) {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/staff/${staffId}/complete`, { method: 'POST' });
             } catch(e) { console.warn('Task completion failed:', e); }
         }
@@ -1260,7 +1271,7 @@
         async function fetchAndRenderSOS() {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/ai/sos_history`);
                 if (!res.ok) return;
                 const data = await res.json();
@@ -1272,7 +1283,7 @@
         async function fetchAndRenderCameraFeeds() {
             try {
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 const res = await fetch(`${baseUrl}/camera/feeds`);
                 if (!res.ok) return;
                 const data = await res.json();

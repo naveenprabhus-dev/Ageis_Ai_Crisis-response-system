@@ -25,11 +25,13 @@ class DigitalTwin {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.container.appendChild(this.renderer.domElement);
         
-        const controlsClass = THREE.OrbitControls || window.OrbitControls;
+        const controlsClass = window.THREE ? (window.THREE.OrbitControls || window.OrbitControls) : null;
         if (controlsClass) {
-            this.controls = new controlsClass(this.camera, this.renderer.domElement);
-            this.controls.target.set(0, 20, 0); 
-            this.controls.enableDamping = true;
+            try {
+                this.controls = new controlsClass(this.camera, this.renderer.domElement);
+                this.controls.target.set(0, 20, 0); 
+                this.controls.enableDamping = true;
+            } catch (e) { console.warn("Controls init failed", e); }
         }
 
         this.rooms = {}; 
