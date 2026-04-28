@@ -170,20 +170,20 @@
                 alert("Triggering AI Crisis Simulation on Cloud...");
                 
                 try {
-                    // 1. Send the initial SOS Trigger
-                    await fetch(`${baseUrl}/comms/trigger_sos`, {
+                    // Send a sample SOS to start the brain
+                    await fetch(`${baseUrl}/simulate/crisis`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             floor: 4,
                             room: "401",
                             guest: "Simulation User",
-                            msg: "URGENT: Fire detected in corridor near Room 401. Heavy smoke. Need AI evacuation guidance immediately."
+                            sos_message: "URGENT: Fire detected in corridor near Room 401. Heavy smoke. Need AI evacuation guidance immediately."
                         })
                     });
                     
-                    // 2. Start the AI Background Brain loop
-                    await fetch(`${baseUrl}/simulate_crisis`, { method: 'POST' });
+                    // Also ping the /simulate endpoint to wake up the brain loop
+                    await fetch(`${baseUrl}/simulate`);
                     
                     alert("Crisis Simulation Active! Check the Dashboard.");
                 } catch (err) {

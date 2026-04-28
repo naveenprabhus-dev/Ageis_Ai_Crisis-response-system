@@ -633,11 +633,8 @@
 
             // Update ETAs
             if (tactical) {
-                const sEta = tactical.staff_eta !== undefined ? tactical.staff_eta : (tactical.eta || 0);
-                const fEta = tactical.fire_eta !== undefined ? tactical.fire_eta : 0;
-                
-                document.getElementById('staff-eta').innerText = sEta + 'm';
-                document.getElementById('fire-eta').innerText = fEta + 'm';
+                document.getElementById('staff-eta').innerText = tactical.staff_eta + 'm';
+                document.getElementById('fire-eta').innerText = tactical.fire_eta + 'm';
                 
                 const urgencyText = tactical.is_critical ? "URGENT: FIRE OVERTAKING" : (currentTask ? "MISSION: ACTIVE" : "NO ACTIVE MISSION");
                 

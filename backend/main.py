@@ -388,6 +388,11 @@ async def simulate_crisis(crisis: CrisisModel):
         return queued
     return JSONResponse({"error": "Could not create task"}, 400)
 
+@app.get("/simulate")
+async def simulate_trigger():
+    engine.trigger_crisis()
+    return {"status": "crisis_triggered"}
+
 
 # ──────────────────────────────────────────────────────────────────────
 #  AI Brain Endpoints
