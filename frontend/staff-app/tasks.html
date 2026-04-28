@@ -148,16 +148,19 @@
                     <h1 id="staff-id-display" class="text-xl font-black tracking-tight text-white">S-04 OPERATOR</h1>
                     <span class="status-badge bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TACTICAL READY</span>
                 </div>
-                <p id="connection-status" class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Awaiting Neural Link...</p>
             </div>
         </div>
 
-        <div class="flex gap-4 items-center">
-            <div class="text-right hidden sm:block">
-                <p class="text-[10px] text-slate-500 uppercase font-bold">Risk Assessment</p>
-                <p id="global-risk-level" class="text-sm font-black text-success">NOMINAL</p>
+        <div class="flex items-center gap-6">
+            <button onclick="enableStaffVoice()" id="staff-voice-unlock" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-500/20">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                Enable AI Voice
+            </button>
+            <div class="text-right">
+                <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Neural Link</p>
+                <p id="connection-status" class="text-[10px] text-green-400 font-bold uppercase tracking-widest">WAITING</p>
             </div>
-            <div class="h-10 w-px bg-slate-800"></div>
+        </div>    <div class="h-10 w-px bg-slate-800"></div>
             <button onclick="toggleVoice()" id="voice-toggle" class="p-3 glass-panel hover:bg-slate-800 transition-colors">
                 <svg id="voice-icon" class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
@@ -546,6 +549,24 @@
             ctx.textAlign = 'center';
             ctx.fillText(id, x, y + 4 * scale);
             ctx.textAlign = 'start';
+        }
+
+        // --- VOICE UNLOCK ---
+        function enableStaffVoice() {
+            const btn = document.getElementById('staff-voice-unlock');
+            window.speechSynthesis.cancel();
+            const welcome = new SpeechSynthesisUtterance("Neural Voice Link Established. Mission ready.");
+            welcome.rate = 1.1;
+            welcome.pitch = 0.9;
+            window.speechSynthesis.speak(welcome);
+            
+            btn.innerText = "Voice Active";
+            btn.classList.remove('bg-indigo-600');
+            btn.classList.add('bg-green-600');
+            btn.onclick = null;
+            
+            // Unlock Mic too
+            initStaffSTT();
         }
 
         // --- CORE LOGIC ---

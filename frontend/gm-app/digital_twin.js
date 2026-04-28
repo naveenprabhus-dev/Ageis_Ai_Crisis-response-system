@@ -370,12 +370,17 @@ class DigitalTwin {
                 opacity = 0.35;
             }
 
+            // Force color update
             mesh.material.color.setHex(color);
             mesh.material.opacity = opacity;
+            mesh.material.needsUpdate = true;
         }
 
         this.updateStaffMeshes(assessment.staff_assignments, assessment.staff_locations);
         this.updateGuestMeshes(assessment.self_rescuing);
+        
+        // Render one frame to reflect changes immediately
+        this.renderer.render(this.scene, this.camera);
     }
 
     updateStaffMeshes(assignments, locations) {

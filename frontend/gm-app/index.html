@@ -421,14 +421,10 @@
                     <div class="flex flex-col gap-8">
                         <div class="glass-panel p-8 border-l-4 border-accent">
                             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">LSTM Decision Logic</h3>
-                            <div class="space-y-4">
+                            <div id="lstm-decision-logic" class="space-y-4">
                                 <div class="p-3 bg-white/5 rounded-lg border border-white/10">
-                                    <p class="text-[10px] font-black text-white uppercase">Proactive Reroute</p>
-                                    <p class="text-[10px] text-slate-400 mt-1">Stairwell B likely compromised in 4.5m. Rerouting Floor 3 units to West Exit.</p>
-                                </div>
-                                <div class="p-3 bg-red-900/10 rounded-lg border border-red-500/20">
-                                    <p class="text-[10px] font-black text-red-400 uppercase">Flashover Prediction</p>
-                                    <p class="text-[10px] text-slate-400 mt-1">High probability (82%) of flashover in Room 204 within 2 minutes.</p>
+                                    <p class="text-[10px] font-black text-slate-500 uppercase">SYSTEM IDLE</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Awaiting crisis data for predictive modeling...</p>
                                 </div>
                             </div>
                         </div>
@@ -495,7 +491,7 @@
                     <div class="flex flex-col gap-4 overflow-hidden">
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">AI Task Engine</h3>
                         <div class="glass-panel p-6 flex flex-col gap-4 flex-grow overflow-hidden border border-white/5">
-                            <div class="flex items-center gap-2 text-accent">
+                            <div id="ai-engine-spinner" class="flex items-center gap-2 text-accent">
                                 <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 <span class="text-[10px] font-black uppercase tracking-tighter">Optimizing Deployments...</span>
                             </div>
@@ -1090,7 +1086,6 @@
 
         function updateStaff(assignments) {
             const grid = document.getElementById('staff-grid');
-            const aiLog = document.getElementById('ai-engine-log');
             if (!grid) return;
             
             if (!assignments || Object.keys(assignments).length === 0) {
@@ -1165,24 +1160,13 @@
             });
         }
 
-        async function completeTask(staffId) {
-            try {
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
-                const res = await fetch(`${baseUrl}/staff/${staffId}/complete`, { method: 'POST' });
-                if (res.ok) {
-                    console.log(`Task completed by ${staffId}`);
-                }
-            } catch (err) {
-                console.error("Error completing task:", err);
-            }
-        }
-
         function updateTacticalLog(log) {
             const aiLogEl = document.getElementById('ai-engine-log');
-            if (!log) return;
+            const spinner = document.getElementById('ai-engine-spinner');
+            if (!log || log.length === 0) return;
 
-            // Update Staff View (Chronological narrative, detailed)
+            if (spinner) spinner.classList.add('hidden');
+            
             if (aiLogEl) {
                 aiLogEl.innerHTML = log.map(entry => {
                     let borderColor = 'border-white/10';
@@ -1209,6 +1193,14 @@
                     `;
                 }).join('');
             }
+        }
+
+        async function completeTask(staffId) {
+            try {
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const baseUrl = isLocal ? 'http://localhost:8000' : 'https://ageis-ai-crisis-response-system-89387172468.asia-south2.run.app';
+                const res = await fetch(`${baseUrl}/staff/${staffId}/complete`, { method: 'POST' });
+            } catch(e) { console.warn('Task completion failed:', e); }
         }
 
         function updateSOSLog(sosEvents) {
@@ -1483,41 +1475,55 @@
             
             // Calculate future spread from actual LSTM prediction data
             let forecastData = [0, 0, 0, 0, 0];
-            if (assessment.fire_spread && assessment.fire_spread.etas) {
+            const riskValues = Object.values(assessment.zone_risk_scores || {});
+            const avgRisk = riskValues.length > 0 ? riskValues.reduce((a, b) => a + b, 0) / riskValues.length : 0;
+
+            if (assessment.fire_spread && assessment.fire_spread.etas && Object.keys(assessment.fire_spread.etas).length > 0) {
                 const etas = Object.values(assessment.fire_spread.etas);
-                if (etas.length > 0) {
-                    forecastData = [0, 5, 10, 15, 20].map(t => {
-                        const threatened = etas.filter(eta => eta <= t).length;
-                        return Math.min(100, (threatened / 20) * 100); // Normalize to 20 rooms threatened
-                    });
-                }
+                forecastData = [0, 5, 10, 15, 20].map(t => {
+                    const threatened = etas.filter(eta => eta <= t).length;
+                    return Math.min(100, (threatened / 10) * 100); // Scale: 10 rooms = 100% spread
+                });
             } else {
-                const avgRisk = Object.values(assessment.zone_risk_scores || {}).reduce((a, b) => a + b, 0) / 5;
+                // Predictive extrapolation based on current risk
                 forecastData = [avgRisk, avgRisk*1.2, avgRisk*1.5, avgRisk*1.8, Math.min(100, avgRisk*2.2)];
             }
             
+            // Ensure no flat 0 lines if there is any risk
+            if (avgRisk > 0 && forecastData.every(v => v === 0)) {
+                forecastData = [avgRisk, avgRisk*1.1, avgRisk*1.2, avgRisk*1.3, avgRisk*1.5];
+            }
+
             fireForecastChart.data.datasets[0].data = forecastData;
             fireForecastChart.update();
 
             if (bottleneckChart && assessment.evac_time) {
-                // Dynamic bottlenecking based on blocked exits and estimated time
                 const blocked = assessment.evac_time.blocked_exits || 0;
-                const time = assessment.evac_time.estimated_time_mins || 10;
-                const baseSat = Math.min(95, (time / 20) * 100);
+                const saturation = assessment.evac_time.saturation_index || 0.2;
+                const baseSat = Math.min(95, saturation * 100);
                 
-                // Exit A, Stairs L, Stairs R, Elevator Bank
                 const sat = [
-                    Math.min(100, baseSat + (blocked > 0 ? 30 : 0)), // Exit A takes overflow
-                    Math.min(100, baseSat + (blocked > 1 ? 40 : 10)), // Stairs L
-                    Math.min(100, baseSat + (blocked > 2 ? 50 : 5)),  // Stairs R
-                    98 // Elevators are always heavily bottlenecked/disabled
+                    Math.min(100, baseSat + (blocked > 0 ? 40 : 0)), 
+                    Math.min(100, baseSat + (blocked > 1 ? 50 : 15)), 
+                    Math.min(100, baseSat + (blocked > 2 ? 60 : 10)), 
+                    92 // Elevator Bank
                 ];
                 bottleneckChart.data.datasets[0].data = sat;
                 bottleneckChart.update();
-            } else if (bottleneckChart) {
-                // If no evac_time yet, keep it at baseline
-                bottleneckChart.data.datasets[0].data = [10, 15, 12, 98];
-                bottleneckChart.update();
+            }
+
+            // Update LSTM Decision Logic Panels
+            const lstmLogic = document.getElementById('lstm-decision-logic');
+            if (lstmLogic && assessment.rescue_decisions) {
+                const decisions = Object.values(assessment.rescue_decisions).slice(0, 2);
+                if (decisions.length > 0) {
+                    lstmLogic.innerHTML = decisions.map(d => `
+                        <div class="p-3 ${d.priority === 'CRITICAL' ? 'bg-red-900/10 border-red-500/20' : 'bg-white/5 border-white/10'} rounded-lg border">
+                            <p class="text-[10px] font-black ${d.priority === 'CRITICAL' ? 'text-red-400' : 'text-accent'} uppercase">${d.type || 'RESCUE REROUTE'}</p>
+                            <p class="text-[10px] text-slate-400 mt-1">${d.reason || 'AI Optimizing route path.'}</p>
+                        </div>
+                    `).join('');
+                }
             }
 
             // Update Heatmap Canvas
