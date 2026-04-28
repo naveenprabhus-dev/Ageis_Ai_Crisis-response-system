@@ -163,7 +163,9 @@
         
         <script>
             async function triggerCloudSimulation() {
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const isLocal = window.location.hostname === 'localhost' || 
+                                window.location.hostname === '127.0.0.1' || 
+                                window.location.protocol === 'file:';
                 const baseUrl = isLocal ? 'http://localhost:8000' : 'https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app';
                 
                 // Show a loading alert
@@ -188,7 +190,7 @@
                     alert("Crisis Simulation Active! Check the Dashboard.");
                 } catch (err) {
                     console.error("Simulation failed:", err);
-                    alert("Failed to trigger simulation. Is the backend public?");
+                    alert("Simulation Failed: " + err.message + "\nBase URL: " + baseUrl);
                 }
             }
         </script>
