@@ -22,40 +22,39 @@ class GemmaService:
             "Marathi": "Marathi SOS. Subject is trapped. Sentiment: Fearful. Priority assignment needed.",
             "English": "Native English SOS. Clear location provided. Sentiment: Controlled urgency.",
             "Telugu": "Telugu identified. Mobility blocked. Sentiment: Desperate. High priority for staff rescue.",
-            "Bengali": "Bengali SOS. Simple distress call. Sentiment: High urgency."
+            "Bengali": "Bengali SOS. Simple distress call. Sentiment: High urgency.",
+            "Malayalam": "Malayalam SOS. Kerala origin detected. High urgency for coastal/water-related or fire distress.",
+            "Kannada": "Kannada SOS. Bangalore-region dialect. Urgent request for immediate corridor clearance."
         }
 
         # Centralized mock mapping for demo consistency
         self._mock_map = {
-            # Original demo messages
             "मुझे मदद की ज़रूरत है, यहाँ धुआँ है!": {"lang": "Hindi", "trans": "I need help, there is smoke here!"},
             "காப்பாற்றுங்கள், என்னால் மூச்சு விட முடியவில்லை!": {"lang": "Tamil", "trans": "Save me, I can't breathe!"},
             "Help me, fire in the hallway!": {"lang": "English", "trans": "Help me, fire in the hallway!"},
             "मदत करा, मी अडकलो आहे!": {"lang": "Marathi", "trans": "Help, I am stuck!"},
             "బయటకు వెళ్లలేకపోతున్నాను, సహాయం చేయండి!": {"lang": "Telugu", "trans": "I can't go out, please help!"},
-            "দয়া করে সাহায্য করুন!": {"lang": "Bengali", "trans": "Please help!"},
-            
-            # test_interception.py messages
+            "ದಯವಿಟ್ಟು ಸಹಾಯ ಮಾಡಿ, ನನಗೆ ದಾರಿ ಕಾಣುತ್ತಿಲ್ಲ!": {"lang": "Kannada", "trans": "Please help, I cannot see the way!"},
+            "സഹായിക്കൂ, ഇവിടെ തീ പിടിച്ചിരിക്കുന്നു!": {"lang": "Malayalam", "trans": "Help, there is a fire here!"},
             "बचाओ! मेरे कमरे में आग लग गई है!": {"lang": "Hindi", "trans": "Help! There is a fire in my room!"},
             "உதவி! மின்சாரப் பெட்டியில் தீப்பிடித்துள்ளது!": {"lang": "Tamil", "trans": "Help! The electrical box is on fire!"},
-            "దయచేసి సహాయం చేయండి, మెట్ల మీద పొగ ఉంది!": {"lang": "Telugu", "trans": "Please help, there is smoke on the stairs!"},
-            "There is a lot of smoke in the corridor! Please help!": {"lang": "English", "trans": "There is a lot of smoke in the corridor! Please help!"}
+            "దయచేసి సహాయం చేయండి, మెట్ల మీద పొగ ఉంది!": {"lang": "Telugu", "trans": "Please help, there is smoke on the stairs!"}
         }
 
     def detect_language(self, text: str) -> str:
         """
-        Detects language based on character ranges (Hindi, Tamil, Telugu, English).
+        Detects language based on character ranges.
         """
-        # Hindi/Marathi/Sanskrit (Devanagari): 0900-097F
-        # Tamil: 0B80-0BFF
-        # Telugu: 0C00-0C7F
-        
         has_hindi = any('\u0900' <= c <= '\u097F' for c in text)
         has_tamil = any('\u0B80' <= c <= '\u0BFF' for c in text)
         has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in text)
+        has_kannada = any('\u0C80' <= c <= '\u0CFF' for c in text)
+        has_malayalam = any('\u0D00' <= c <= '\u0D7F' for c in text)
         
         if has_tamil: return "Tamil"
         if has_telugu: return "Telugu"
+        if has_kannada: return "Kannada"
+        if has_malayalam: return "Malayalam"
         if has_hindi: return "Hindi"
         return "English"
 
@@ -64,9 +63,8 @@ class GemmaService:
         Gemma-powered SOS Analysis: Detects Language, Translates, and provides Reasoning.
         """
         if self.demo_mode:
-            time.sleep(random.uniform(0.5, 1.2)) # LLM Latency simulation
+            time.sleep(random.uniform(0.3, 0.7)) # LLM Latency simulation
             
-            # Use character detection for unknown messages
             lang = self.detect_language(message)
             data = self._mock_map.get(message, {"lang": lang, "trans": message})
             
@@ -77,13 +75,9 @@ class GemmaService:
                 "reasoning": self._reasoning_bank.get(lang, "Standard SOS pattern recognized. Analyzing proximity to fire zones...")
             }
         else:
-            # Production Gemma API Call would go here
             return {"detected_language": "Unknown", "english_translation": message, "reasoning": "API Offline"}
 
     def generate_strategic_advice(self, crisis_type: str, severity: int, affected_floors: list) -> str:
-        """
-        Generates a strategic update based on current building state.
-        """
         if crisis_type == "MONITORING":
             return "Gemma: System state nominal. Continuing multi-modal surveillance."
         
@@ -96,32 +90,26 @@ class GemmaService:
         return " ".join(random.sample(advice, 2))
 
     def translate_to_english(self, text: str, source_lang: str) -> str:
-        """Translates guest language to English for staff."""
         if self.demo_mode:
-            # 1. Look up in mock map for exact matches
             if text in self._mock_map:
                 return self._mock_map[text]["trans"]
             
-            # 2. If it's already English, return it
             detected = self.detect_language(text)
             if detected == "English":
                 return text
             
-            # 3. If it's a known language but unknown text, provide an "AI-Estimated" translation for the demo
             generic_translations = {
-                "Hindi": "[AI Translation]: Emergency! I need immediate assistance in my room.",
-                "Tamil": "[AI Translation]: Alert! There is smoke/fire and I am trapped.",
+                "Hindi": "[AI Translation]: Emergency! I need immediate assistance.",
+                "Tamil": "[AI Translation]: Alert! There is danger and I am trapped.",
                 "Telugu": "[AI Translation]: Help! I cannot exit the room, please send rescue.",
-                "Marathi": "[AI Translation]: Danger! Structural integrity compromised, help needed."
+                "Kannada": "[AI Translation]: Immediate assistance requested. Potential blockage.",
+                "Malayalam": "[AI Translation]: Distress signal detected. Urgent life safety threat."
             }
-            return generic_translations.get(detected, f"[AI Translation]: Distress signal received in {detected}.")
-            
+            return generic_translations.get(detected, f"[AI Translation]: Distress signal in {detected}.")
         return text
 
     def translate_to_guest(self, text: str, target_lang: str) -> str:
-        """Translates English staff message to guest language."""
         if self.demo_mode:
-            # Simple mock translation back for demo purposes
             reverse_map = {v["trans"]: k for k, v in self._mock_map.items() if v["lang"] == target_lang}
             return reverse_map.get(text, text)
         return text
