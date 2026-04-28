@@ -94,9 +94,13 @@ class LSTMFireSpread:
                         }
 
         sorted_preds = sorted(predictions.values(), key=lambda x: x["eta"])
+        etas = {zone: 0.0 for zone in current_fire_zones}
+        for p in sorted_preds:
+            etas[p["zone"]] = p["eta"]
+
         return {
             "next_zones": [p["zone"] for p in sorted_preds[:3]],
-            "etas": {p["zone"]: p["eta"] for p in sorted_preds},
+            "etas": etas,
             "spread_rate": round(velocity, 2),
             "predictions": sorted_preds[:5],
         }

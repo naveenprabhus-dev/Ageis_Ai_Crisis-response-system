@@ -10,7 +10,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import uvicorn
 
 from task_engine import TaskEngine
 from ai_brain import AiBrain
@@ -194,7 +193,13 @@ async def ai_brain_cycle():
             # Sync Guest App
             await manager.broadcast_guest({
                 "type": "AI_ASSESSMENT",
-                "assessment": assessment
+                "assessment": assessment,
+                "staff_locations": manager.staff_locations,
+                "tactical_data": engine.get_all_staff_tactical_data({
+                    "fire_zones": assessment["fire_spread"]["actual_fire_zones"],
+                    "blocked_corridors": assessment["smoke_spread"]["blocked_corridors"],
+                    "fire_etas": assessment["fire_spread"]["etas"]
+                })
             })
 
             # Sync Staff App
@@ -235,7 +240,19 @@ async def root():
 # ──────────────────────────────────────────────────────────────────────
 @app.post("/guest/sos")
 async def guest_sos(req: GuestSosRequest):
-    task = engine.create_task(req.floor, req.room, req.guest, req.sos_message, req.lang)
+    # Pass raw message through Gemma AI for language detection and translation
+    analysis = gemma.analyze_sos(req.sos_message)
+    
+    task = engine.create_task(
+        floor=req.floor, 
+        room_id=req.room, 
+        guest_name=req.guest, 
+        sos_message=req.sos_message,
+        detected_language=analysis["detected_language"],
+        english_translation=analysis["english_translation"],
+        sentiment=analysis.get("sentiment", "Urgent"),
+        reasoning=analysis.get("reasoning", "")
+    )
     if task:
         queued = await queue.enqueue(task)
         exit_label, exit_path = engine._best_exit(req.room)
@@ -400,6 +417,10 @@ async def get_evac_routes(floor: int):
 async def get_ai_log():
     return {"log": brain.get_log()}
 
+@app.get("/ai/sos_history")
+async def get_sos_history():
+    return {"recent_sos": engine.get_recent_sos()}
+
 
 # ──────────────────────────────────────────────────────────────────────
 #  Camera & Weather Endpoints
@@ -531,13 +552,3 @@ async def websocket_endpoint(ws: WebSocket, role: str):
                 })
     except WebSocketDisconnect:
         manager.disconnect(ws, role)
-
-# ──────────────────────────────────────────────────────────────────────
-#  Production Entrypoint (Render / Cloud Run)
-# ──────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    # Read port from environment (Render injects this)
-    port = int(os.environ.get("PORT", 8000))
-    
-    print(f"🚀 Aegis AI Backend starting on port {port}...")
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

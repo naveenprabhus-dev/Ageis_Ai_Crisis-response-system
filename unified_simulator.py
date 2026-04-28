@@ -96,7 +96,7 @@ async def inject_single_crisis(client: httpx.AsyncClient, floor=None, room=None,
     try:
         resp = await client.post(f"{API_URL}/simulate/crisis", json=payload, timeout=10)
         if resp.status_code == 200:
-            log("CRISIS", f"Floor {floor}, Room {room} | {name} ({lang}) → INJECTED ✓", "red")
+            log("CRISIS", f"Floor {floor}, Room {room} | {name} ({lang}) -> INJECTED", "red")
         else:
             log("CRISIS", f"Floor {floor}, Room {room} | Status {resp.status_code} → {resp.text[:80]}", "yellow")
     except Exception as e:
@@ -135,7 +135,7 @@ async def simulate_staff_member(staff_id: str):
                 if task and "id" in task:
                     target_floor = task["floor"]
                     target_room  = task["room"]
-                    log("STAFF", f"[{staff_id}] → Assigned Room {target_room} (Floor {target_floor})", "cyan")
+                    log("STAFF", f"[{staff_id}] -> Assigned Room {target_room} (Floor {target_floor})", "cyan")
 
                     # 2. Travel step-by-step
                     while current_room != target_room or current_floor != target_floor:
@@ -164,7 +164,7 @@ async def simulate_staff_member(staff_id: str):
                                 json={"floor": current_floor, "room": current_room},
                                 timeout=5
                             )
-                            log("STAFF", f"  [{staff_id}] -> Floor {current_floor}, Room {current_room}", "blue")
+                            log("STAFF", f"  [{staff_id}] -> Fl.{current_floor} Room {current_room}", "blue")
                         except Exception:
                             pass
 
@@ -240,29 +240,21 @@ async def simulate_guest_self_rescue(room_id: str, floor: int):
             log("GUEST", f"[{guest_id}] Error completing: {e}", "yellow")
 
 async def run_guest_self_rescue_loop():
-    """Poll for self-rescuing guests and trigger their simulation."""
-    log("MODULE", "Guest Self-Rescue Tracker started — monitoring AI assessments", "magenta")
-    simulating = set()
+    """Poll queue stats and log guest rescue activity."""
+    log("MODULE", "Guest Self-Rescue Tracker started -- monitoring queue", "magenta")
     async with httpx.AsyncClient() as client:
         while True:
             try:
-                r = await client.get(f"{API_URL}/ai/assessment", timeout=10)
-                assessment = r.json()
-                assignments = assessment.get("staff_assignments", {})
-                
-                for sid, data in assignments.items():
-                    if sid.startswith("GUEST_") and sid not in simulating:
-                        simulating.add(sid)
-                        asyncio.create_task(simulate_guest_self_rescue(data["room"], data["floor"]))
-                
-                # Cleanup simulating set (only keep active assignments)
-                active_guests = {sid for sid in assignments if sid.startswith("GUEST_")}
-                simulating = simulating.intersection(active_guests)
-                
+                r = await client.get(f"{API_URL}/queue/stats", timeout=10)
+                if r.status_code == 200:
+                    stats = r.json()
+                    active  = stats.get("active", 0)
+                    queued  = stats.get("queued_red", 0) + stats.get("queued_yellow", 0) + stats.get("queued_green", 0)
+                    done    = stats.get("completed", 0)
+                    log("QUEUE", f"Active rescues: {active} | Queued: {queued} | Completed: {done}", "magenta")
             except Exception as e:
-                log("GUEST_LOOP", f"Error: {e}", "yellow")
-            
-            await asyncio.sleep(4)
+                log("GUEST_LOOP", f"Queue poll error: {e}", "yellow")
+            await asyncio.sleep(8)
 
 # ── Module 5: Targeted Scenario ──────────────────────────────────────────
 async def run_scenario(floor: int, room: str, guest_name: str = "Demo Guest"):

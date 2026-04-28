@@ -17,6 +17,7 @@ SCENARIOS = {
                 "204": {"name": "Sita Devi", "vulnerable": False, "status": "STAYING", "language": "Tamil"},
                 "404": {"name": "Vikram Shah", "vulnerable": False, "status": "STAYING", "language": "English"},
                 "305": {"name": "Arjun Das", "vulnerable": False, "status": "STAYING", "language": "English"},
+                "401": {"name": "Naveen Prabhu", "vulnerable": False, "status": "STAYING", "language": "English"},
             },
             "staff": {
                 "S-01": {"floor": 0, "room": "001", "name": "S-01"},

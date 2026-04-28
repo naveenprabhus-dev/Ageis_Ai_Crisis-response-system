@@ -22,12 +22,19 @@ class GeminiService:
 
         # Mock dictionaries for the prototype
         self._mock_translations = {
+            # Original demo messages
             "मुझे मदद की ज़रूरत है, यहाँ धुआँ है!": {"detected_language": "Hindi", "english_translation": "I need help, there is smoke here!"},
             "காப்பாற்றுங்கள், என்னால் மூச்சு விட முடியவில்லை!": {"detected_language": "Tamil", "english_translation": "Save me, I can't breathe!"},
             "Help me, fire in the hallway!": {"detected_language": "English", "english_translation": "Help me, fire in the hallway!"},
-            "मदत करा, मी अडकलो आहे!": {"detected_language": "Marathi", "english_translation": "Help, I am stuck!"},
+            "मदत करा, मी अडకलो आहे!": {"detected_language": "Marathi", "english_translation": "Help, I am stuck!"},
             "బయటకు వెళ్లలేకపోతున్నాను, సహాయం చేయండి!": {"detected_language": "Telugu", "english_translation": "I can't go out, please help!"},
-            "দয়া করে সাহায্য করুন!": {"detected_language": "Bengali", "english_translation": "Please help!"}
+            "দয়া করে সাহায্য করুন!": {"detected_language": "Bengali", "english_translation": "Please help!"},
+            
+            # test_interception.py messages
+            "बचाओ! मेरे कमरे में आग लग गई है!": {"detected_language": "Hindi", "english_translation": "Help! There is a fire in my room!"},
+            "உதவி! மின்சாரப் பெட்டியில் தீப்பிடித்துள்ளது!": {"detected_language": "Tamil", "english_translation": "Help! The electrical box is on fire!"},
+            "దయచేసి సహాయం చేయండి, మెట్ల మీద పొగ ఉంది!": {"detected_language": "Telugu", "english_translation": "Please help, there is smoke on the stairs!"},
+            "There is a lot of smoke in the corridor! Please help!": {"detected_language": "English", "english_translation": "There is a lot of smoke in the corridor! Please help!"}
         }
 
     def analyze_sos(self, message: str) -> Dict[str, str]:
@@ -42,15 +49,26 @@ class GeminiService:
             # Use exact match or fallback to generic
             result = self._mock_translations.get(
                 message, 
-                {"detected_language": "Unknown", "english_translation": "Unknown SOS message received."}
+                {"detected_language": "Unknown", "english_translation": message} # Return original if not found
             )
             return result
         else:
             # Production Implementation
-            # prompt = f"Detect the language of the following SOS message and translate it to English. Return ONLY valid JSON with keys 'detected_language' and 'english_translation'. Message: '{message}'"
-            # response = self.model.generate_content(prompt)
-            # ... parse json response ...
-            return {"detected_language": "Unknown", "english_translation": "Production implementation missing."}
+            return {"detected_language": "Unknown", "english_translation": message, "reasoning": "Production implementation missing."}
+
+    def translate_to_english(self, text: str, source_lang: str) -> str:
+        """Translates guest language to English for staff."""
+        if self.demo_mode:
+            return self._mock_translations.get(text, {"english_translation": text})["english_translation"]
+        return text
+
+    def translate_to_guest(self, text: str, target_lang: str) -> str:
+        """Translates English staff message to guest language."""
+        if self.demo_mode:
+            # Simple mock translation back for demo purposes
+            reverse_map = {v["english_translation"]: k for k, v in self._mock_translations.items() if v["detected_language"] == target_lang}
+            return reverse_map.get(text, text)
+        return text
 
     def generate_safety_advice(self, fire_presence: bool, smoke_level: float, rescue_mode: str) -> Dict[str, str]:
         """
@@ -60,19 +78,19 @@ class GeminiService:
             # Return pre-written advice for demo purposes
             if rescue_mode == "STAFF_RESCUE":
                 return {
-                    "voice_advice": "Stay calm. Help is on the way. Use a wet towel to block smoke under doors.",
-                    "text_advice": "Stay calm. Help is on the way. Use a wet towel to block smoke under doors."
+                    "voice_advice": "AI Guardian: Staff will come, be safe. Use a wet towel to block smoke under doors.",
+                    "text_advice": "AI Guardian: Staff will come, be safe. Use a wet towel to block smoke under doors."
                 }
             else:
                 if fire_presence or smoke_level > 0.5:
                     return {
-                        "voice_advice": "Proceed to the nearest exit. Stay low and avoid smoke.",
-                        "text_advice": "Proceed to the nearest exit. Stay low and avoid smoke."
+                        "voice_advice": "AI Guardian: Proceed to the nearest exit. Stay low and avoid smoke.",
+                        "text_advice": "AI Guardian: Proceed to the nearest exit. Stay low and avoid smoke."
                     }
                 else:
                     return {
-                        "voice_advice": "Evacuate the building safely. Follow the green exit signs.",
-                        "text_advice": "Evacuate the building safely. Follow the green exit signs."
+                        "voice_advice": "AI Guardian: Evacuate the building safely. Follow the green exit signs.",
+                        "text_advice": "AI Guardian: Evacuate the building safely. Follow the green exit signs."
                     }
         else:
             # Real LLM Call would go here

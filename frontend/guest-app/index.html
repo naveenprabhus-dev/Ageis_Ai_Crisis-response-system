@@ -293,10 +293,20 @@
         let isPanicDetected = false;
         let guestRoomId = "";
         let staffAssigned = false;
+        let currentRescueMode = null;
+        let currentRationale = null;
         window.assignedStaffId = null;
         window.currentStaffLocation = null;
         let guestRecognition;
         let isGuestListening = false;
+        
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:8000' 
+            : `${window.location.protocol}//${window.location.host}`;
+        
+        const WS_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'ws://localhost:8000/ws'
+            : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
         // --- AUDIO AI Logic ---
         async function initAudioAI() {
@@ -429,7 +439,7 @@
             const guestNames = ["Rajesh Kumar", "Priya Singh", "Amit Patel", "Sita Devi", "Vikram Shah", "Arjun Das", "Neha Sharma", "Suresh Nair"];
             const randomName = guestNames[parseInt(guestRoomId.slice(-1)) % guestNames.length] || "Guest User";
 
-            fetch('/guest/sos', {
+            fetch(`${API_BASE}/guest/sos`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -441,8 +451,71 @@
                 })
             }).then(r => r.json()).then(data => {
                 switchState('evacuating');
-                drawGuestMap(parseInt(floor), guestRoomId, null);
+                
+                // Show Comms Hub immediately
+                document.getElementById('guest-comms-hub').classList.remove('hidden');
+                document.getElementById('guest-comms-hub').classList.add('flex');
+
+                if (guestRoomId === "401") {
+                    // Force immediate self-rescue mode for Room 401 demo
+                    startSelfRescue(parseInt(floor));
+                } else {
+                    drawGuestMap(parseInt(floor), guestRoomId, null);
+                }
             }).catch(err => console.error("SOS fetch error:", err));
+        }
+
+        function startSelfRescue(myFloor) {
+            // Apply Green Theme
+            document.body.style.background = 'linear-gradient(180deg, #0f3f1f 0%, #051a0a 100%)';
+            document.getElementById('safety-status').innerText = "Self-Rescue Active";
+            document.getElementById('safety-status').className = "text-xs font-black uppercase text-emerald-500";
+            
+            document.getElementById('map-wrapper')?.classList.remove('hidden');
+            document.getElementById('llm-decision-block').classList.remove('hidden');
+            document.getElementById('llm-rationale-text').innerText = "AI Guardian Analysis: Room 401 is clear for self-evacuation. Please follow the guided path.";
+            
+            const msg = "AI Guardian: Proceed to the nearest exit immediately. Do not use the elevator. Use the stairs.";
+            document.getElementById('reassurance-msg').innerText = msg;
+            
+            if (!guestGPS.active) {
+                guestGPS.active = true;
+                guestGPS.floor = myFloor;
+                guestGPS.phase = 0;
+                
+                const canvas = document.getElementById('guest-floor-map');
+                const w = canvas.width;
+                const h = canvas.height;
+                const padX = w * 0.15;
+                const padY = h * 0.2;
+                const floorW = w - 2 * padX;
+                const roomW = floorW / 5;
+                const floorH = h - 2 * padY;
+                const corridorH = floorH * 0.3;
+                const roomH = (floorH - corridorH) / 2;
+                
+                const rNum = parseInt(guestRoomId.slice(-2));
+                let rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
+                let isTop = rNum <= 5;
+                
+                guestGPS.exitDir = rIdx >= 3 ? 'R' : 'L';
+                
+                const rx = padX + rIdx * roomW;
+                const ry = isTop ? padY : padY + roomH + corridorH;
+                
+                guestGPS.x = rx + roomW/2 - 15;
+                guestGPS.y = ry + roomH/2 - 15;
+                guestGPS.startX = guestGPS.x;
+                guestGPS.tx = guestGPS.x;
+                guestGPS.ty = guestGPS.y;
+                
+                guestGPS.waitingForVoice = true;
+                speakInstructions(msg, () => {
+                    guestGPS.waitingForVoice = false;
+                });
+                
+                updateGPS();
+            }
         }
 
         function triggerPanicRelief() {
@@ -635,11 +708,11 @@
             const lang = document.getElementById('detected-lang').innerText;
             const exitName = guestGPS.exitDir === 'R' ? 'Exit R' : 'Exit L';
             const routeInstructions = {
-                1: { 'Hindi': `गलियारे में मुड़ें और ${exitName} की ओर चलें।`, 'Tamil': `தாழ்வாரத்தில் திரும்பி ${exitName} அடையாளத்தை நோக்கி நடக்கவும்.`, 'Telugu': `కారిడార్‌లో తిరిగి ${exitName} గుర్తు వైపు నడవండి.`, 'English': `Turn and walk down the corridor towards ${exitName}.` },
-                2: { 'Hindi': 'आप सीढ़ियों तक पहुँच गए हैं। कृपया सावधानी से नीचे उतरें।', 'Tamil': 'நீங்கள் படிக்கட்டுகளை அடைந்துவிட்டீர்கள். தயவுசெய்து கவனமாக கீழே இறங்கவும்.', 'Telugu': 'మీరు మెట్లను చేరుకున్నారు. దయచేసి జాగ్రత్తగా దిగండి.', 'English': 'You have reached the stairwell. Please descend carefully.' },
-                3: { 'Hindi': 'नीचे उतरते रहें।', 'Tamil': 'தொடர்ந்து கீழே இறங்கவும்.', 'Telugu': 'దిగడం కొనసాగించండి.', 'English': 'Keep descending.' },
-                4: { 'Hindi': 'आप भूतल पर पहुँच गए हैं। मुख्य निकास द्वार की ओर बढ़ें।', 'Tamil': 'நீங்கள் தரை தளத்தை அடைந்துவிட்டீர்கள். பிரதான வெளியேறும் கதவுகளுக்குச் செல்லவும்.', 'Telugu': 'మీరు గ్రౌండ్ ఫ్లోర్ చేరుకున్నారు. ప్రధాన ఎగ్జిట్ తలుపుల వైపు వెళ్లండి.', 'English': 'You have reached the ground floor. Proceed to the main exit doors.' },
-                5: { 'Hindi': 'आप सुरक्षित रूप से बाहर निकल गए हैं। कृपया बाहर आपातकालीन कर्मचारियों से मिलें।', 'Tamil': 'நீங்கள் பாதுகாப்பாக வெளியேற்றப்பட்டீர்கள். வெளியே உள்ள அவசரகால ஊழியர்களைத் தொடர்பு கொள்ளவும்.', 'Telugu': 'మీరు సురక్షితంగా ఖాళీ చేయబడ్డారు. దయచేసి బయట అత్యవసర సిబ్బందిని కలవండి.', 'English': 'You are safely evacuated. Please check in with emergency staff outside.' }
+                1: { 'Hindi': `AI Guardian: गलियारे में मुड़ें और ${exitName} की ओर चलें।`, 'Tamil': `AI Guardian: தாழ்வாரத்தில் திரும்பி ${exitName} அடையாளத்தை நோக்கி நடக்கவும்.`, 'Telugu': `AI Guardian: కారిడార్‌లో తిరిగి ${exitName} గుర్తు వైపు నడవండి.`, 'English': `AI Guardian: Turn and walk down the corridor towards ${exitName}.` },
+                2: { 'Hindi': 'AI Guardian: आप सीढ़ियों तक पहुँच गए हैं। कृपया सावधानी से नीचे उतरें।', 'Tamil': 'AI Guardian: நீங்கள் படிக்கட்டுகளை அடைந்துவிட்டீர்கள். தயவுசெய்து கவனமாக கீழே இறங்கவும்.', 'Telugu': 'AI Guardian: మీరు మెట్లను చేరుకున్నారు. దయచేసి జాగ్రత్తగా దిగండి.', 'English': 'AI Guardian: You have reached the stairwell. Please descend carefully.' },
+                3: { 'Hindi': 'AI Guardian: नीचे उतरते रहें।', 'Tamil': 'AI Guardian: தொடர்ந்து கீழே இறங்கவும்.', 'Telugu': 'AI Guardian: దిగడం కొనసాగించండి.', 'English': 'AI Guardian: Keep descending.' },
+                4: { 'Hindi': 'AI Guardian: आप भूतल पर पहुँच गए हैं। मुख्य निकास द्वार की ओर बढ़ें।', 'Tamil': 'AI Guardian: நீங்கள் தரை தளத்தை அடைந்துவிட்டீர்கள். பிரதான வெளியேறும் கதவுகளுக்குச் செல்லவும்.', 'Telugu': 'AI Guardian: మీరు గ్రౌండ్ ఫ్లోర్ చేరుకున్నారు. ప్రధాన ఎగ్జిట్ తలుపుల వైపు వెళ్లండి.', 'English': 'AI Guardian: You have reached the ground floor. Proceed to the main exit doors.' },
+                5: { 'Hindi': 'AI Guardian: आप सुरक्षित रूप से बाहर निकल गए हैं। कृपया बाहर आपातकालीन कर्मचारियों से मिलें।', 'Tamil': 'AI Guardian: நீங்கள் பாதுகாப்பாக வெளியேற்றப்பட்டீர்கள். வெளியே உள்ள அவசரகால ஊழியர்களைத் தொடர்பு கொள்ளவும்.', 'Telugu': 'AI Guardian: మీరు సురక్షితంగా ఖాళీ చేయబడ్డారు. దయచేసి బయట అత్యవసర సిబ్బందిని కలవండి.', 'English': 'AI Guardian: You are safely evacuated. Please check in with emergency staff outside.' }
             };
 
             if (guestGPS.phase === 1) {
@@ -706,15 +779,26 @@
         let lastSpoken = "";
         let isSpeaking = false;
         function speakInstructions(msg, onEndCallback) {
-            if (msg === lastSpoken || isSpeaking) {
+            if (!msg) {
                 if (onEndCallback) onEndCallback();
                 return;
             }
-            lastSpoken = msg;
+            
+            // Ensure AI Guardian identity prefix
+            let finalMsg = msg;
+            if (!finalMsg.startsWith("AI Guardian:")) {
+                finalMsg = "AI Guardian: " + finalMsg;
+            }
+
+            if (finalMsg === lastSpoken || isSpeaking) {
+                if (onEndCallback) onEndCallback();
+                return;
+            }
+            lastSpoken = finalMsg;
             isSpeaking = true;
             window.speechSynthesis.cancel();
             
-            const utterance = new SpeechSynthesisUtterance(msg);
+            const utterance = new SpeechSynthesisUtterance(finalMsg);
             const lang = document.getElementById('detected-lang').innerText;
             
             const voiceMap = { 'Hindi': 'hi-IN', 'Tamil': 'ta-IN', 'Telugu': 'te-IN', 'English': 'en-US' };
@@ -735,8 +819,7 @@
 
         // --- WS Logic ---
         function initWS() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws/guest`);
+            ws = new WebSocket(`${WS_BASE}/guest`);
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 
@@ -748,8 +831,16 @@
                     const rescueDecision = assessment.rescue_decisions ? assessment.rescue_decisions.find(r => r.room === guestRoomId) : null;
                     
                     if (rescueDecision) {
+                        const modeChanged = currentRescueMode !== rescueDecision.rescue_mode;
+                        const rationaleChanged = currentRationale !== rescueDecision.rationale;
+                        
+                        currentRescueMode = rescueDecision.rescue_mode;
+                        currentRationale = rescueDecision.rationale;
+
                         document.getElementById('map-wrapper').classList.remove('hidden');
                         document.getElementById('llm-decision-block').classList.remove('hidden');
+                        document.getElementById('guest-comms-hub').classList.remove('hidden');
+                        document.getElementById('guest-comms-hub').classList.add('flex');
                         document.getElementById('llm-rationale-text').innerText = rescueDecision.rationale || "AI Decision processing...";
 
                         if (rescueDecision.rescue_mode === 'STAFF_RESCUE') {
@@ -762,8 +853,8 @@
                             const msg = rescueDecision.text_advice || "Stay calm. Help is on the way.";
                             document.getElementById('reassurance-msg').innerText = msg;
                             
-                            // Speak advice
-                            if (!guestGPS.waitingForVoice) {
+                            // Speak advice only on change
+                            if (modeChanged || rationaleChanged) {
                                 guestGPS.waitingForVoice = true;
                                 speakInstructions(rescueDecision.voice_advice || msg, () => {
                                     guestGPS.waitingForVoice = false;
@@ -783,45 +874,15 @@
                             const msg = rescueDecision.text_advice || "Proceed to the nearest exit immediately.";
                             document.getElementById('reassurance-msg').innerText = msg;
                             
-                            if (!guestGPS.active) {
-                                guestGPS.active = true;
-                                guestGPS.floor = myFloor;
-                                guestGPS.phase = 0;
-                                
-                                const canvas = document.getElementById('guest-floor-map');
-                                const w = canvas.width;
-                                const h = canvas.height;
-                                const padX = w * 0.15;
-                                const padY = h * 0.2;
-                                const floorW = w - 2 * padX;
-                                const roomW = floorW / 5;
-                                const floorH = h - 2 * padY;
-                                const corridorH = floorH * 0.3;
-                                const roomH = (floorH - corridorH) / 2;
-                                
-                                const rNum = parseInt(guestRoomId.slice(-2));
-                                let rIdx = rNum <= 5 ? rNum - 1 : rNum - 6;
-                                let isTop = rNum <= 5;
-                                
-                                guestGPS.exitDir = rIdx >= 3 ? 'R' : 'L';
-                                
-                                const rx = padX + rIdx * roomW;
-                                const ry = isTop ? padY : padY + roomH + corridorH;
-                                
-                                guestGPS.x = rx + roomW/2 - 15;
-                                guestGPS.y = ry + roomH/2 - 15;
-                                guestGPS.startX = guestGPS.x;
-                                guestGPS.tx = guestGPS.x;
-                                guestGPS.ty = guestGPS.y;
-                                
+                            if (modeChanged || rationaleChanged) {
                                 guestGPS.waitingForVoice = true;
                                 speakInstructions(rescueDecision.voice_advice || msg, () => {
                                     guestGPS.waitingForVoice = false;
                                 });
-                                
-                                updateGPS();
-                            } else {
-                                // Speak advice if phase changed or something
+                            }
+                            
+                            if (!guestGPS.active) {
+                                startSelfRescue(myFloor);
                             }
                         }
                     }
@@ -835,18 +896,20 @@
                     document.getElementById('eta-val').innerText = data.data.eta || 3;
                     document.getElementById('guest-comms-hub').classList.remove('hidden');
                     document.getElementById('guest-comms-hub').classList.add('flex');
+                    
+                    speakInstructions(`AI Guardian: A rescue team has been assigned. Unit ${data.data.assigned_to} is on the way. ETA ${data.data.eta || 3} minutes.`);
                 }
                 
                 if (data.type === 'STAFF_MESSAGE' && data.room === guestRoomId) {
                     appendGuestChatMessage(data.translated_text, 'staff', data.original_text);
-                    speakInstructions("Staff says: " + data.translated_text);
+                    speakInstructions("AI Guardian: Staff says: " + data.translated_text);
                 }
                 
                 if (data.type === 'STAFF_REACHED' && data.room === guestRoomId) {
                     document.getElementById('map-container-el').classList.add('hidden');
                     document.getElementById('follow-staff-block').classList.remove('hidden');
-                    document.getElementById('reassurance-msg').innerText = "Rescue team is here. Follow the responder immediately.";
-                    speakInstructions("Staff has reached you. Please follow the responder to the exit.");
+                    document.getElementById('reassurance-msg').innerText = "AI Guardian: Rescue team is here. Follow the responder immediately.";
+                    speakInstructions("AI Guardian: Staff has reached you. Please follow the responder to the exit.");
                     
                     // Adjust UI for rescue phase
                     document.getElementById('ai-reassurance').parentElement.classList.remove('w-1/3');
@@ -855,7 +918,7 @@
                 
                 if (data.type === 'RESCUE_SUCCESS' && data.task.room === guestRoomId) {
                     document.getElementById('rescue-success-overlay').classList.remove('hidden');
-                    speakInstructions("You are rescued. Mission successful.");
+                    speakInstructions("AI Guardian: You are rescued. Mission successful.");
                 }
 
                 if (data.type === 'STAFF_LOCATION' && window.assignedStaffId === data.staff_id) {
@@ -898,7 +961,7 @@
             appendGuestChatMessage(text, 'guest');
             
             try {
-                await fetch('/comms/guest_to_staff', {
+                await fetch('http://localhost:8000/comms/guest_to_staff', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

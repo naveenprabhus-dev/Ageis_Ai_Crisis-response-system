@@ -16,7 +16,12 @@ import sys
 
 # ── Re-export the FastAPI app so Gunicorn can find it as `run:app` ──────────
 # Gunicorn / Uvicorn expects a module-level `app` object.
-from backend.main import app  # noqa: F401  (re-export)
+# Add backend dir to path so flat absolute imports (e.g. `from task_engine import ...`) resolve.
+_backend_dir = os.path.join(os.path.dirname(__file__), "backend")
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
+from main import app  # noqa: F401  (re-export — main.py lives in backend/)
 
 # ── Health-check convenience endpoint (already defined in backend/main.py) ──
 # GET /  →  {"message": "Aegis AI Enterprise Orchestrator Online", "version": "2.0"}

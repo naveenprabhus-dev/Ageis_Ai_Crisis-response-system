@@ -178,9 +178,17 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">STAFF</span>
             </button>
+            <button onclick="switchTab('interception')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-interception" title="SOS Interception">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">SOS</span>
+            </button>
             <button onclick="switchTab('reports')" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-reports" title="Reports">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">LOGS</span>
+            </button>
+            <button onclick="toggleVoiceAssistant()" class="sidebar-btn w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-all gap-0.5 group" id="btn-voice" title="Voice Assistant">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                <span class="text-[7px] font-bold uppercase tracking-wider opacity-60 group-hover:opacity-100">VOICE</span>
             </button>
             <!-- Gemma Badge at bottom -->
             <div class="mt-auto flex flex-col items-center gap-1">
@@ -460,6 +468,55 @@
                                 <!-- Logs will be dynamically injected here -->
                             </div>
 
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- SOS Interception View -->
+            <div id="view-interception" class="hidden flex flex-col gap-8 h-full">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-black text-white tracking-tighter uppercase">SOS Interception Core // <span class="text-accent">Live Feed</span></h2>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-modal SOS Analysis Powered by Gemma-7B</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="glass-panel px-4 py-2 text-[10px] font-bold border-l-4 border-accent">FEEDS: ACTIVE</div>
+                        <button onclick="fetchAndRenderSOS()" class="glass-panel px-4 py-2 text-[10px] font-bold border-l-4 border-blue-500 hover:bg-blue-500/10 transition-all">REFRESH LOG</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-8 flex-grow overflow-hidden">
+                    <div class="col-span-2 glass-panel p-8 flex flex-col gap-6 overflow-hidden">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Live SOS Stream</h3>
+                        <div id="sos-log-full" class="flex-grow space-y-6 overflow-y-auto pr-4 custom-scrollbar">
+                            <p class="text-[11px] italic text-slate-600 text-center py-20">Monitoring encrypted guest channels...</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6">
+                        <div class="glass-panel p-6 border-l-4 border-emerald-500">
+                            <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-4">✨ Gemma Insights</h3>
+                            <div class="space-y-4">
+                                <div class="bg-white/5 p-4 rounded-xl">
+                                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Total Intercepts</p>
+                                    <span id="sos-total-count" class="text-2xl font-black text-white">0</span>
+                                </div>
+                                <div class="bg-red-500/5 p-4 rounded-xl border border-red-500/10">
+                                    <p class="text-[10px] font-bold text-red-500 uppercase mb-2">Critical Sentiments</p>
+                                    <span id="sos-critical-count" class="text-2xl font-black text-red-400">0</span>
+                                </div>
+                                <div class="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
+                                    <p class="text-[10px] font-bold text-blue-500 uppercase mb-2">Languages Detected</p>
+                                    <div id="sos-languages" class="flex flex-wrap gap-2 mt-2">
+                                        <!-- Dynamic tags -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-6 flex-grow">
+                            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Analysis Rationale</h3>
+                            <div id="sos-rationale-feed" class="text-[10px] text-slate-400 space-y-4 overflow-y-auto">
+                                <p class="italic">Select an intercept to view deep reasoning...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -830,21 +887,21 @@
             const activeBtn = document.getElementById(`btn-${tab}`);
             if (activeBtn) activeBtn.classList.add('active');
             
-            ['dashboard', 'vision', 'forecasting', 'staff', 'reports'].forEach(t => {
+            ['dashboard', 'vision', 'forecasting', 'staff', 'reports', 'interception'].forEach(t => {
                 const el = document.getElementById(`view-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tab);
             });
 
             if (tab === 'staff' && typeof resizeMap === 'function') setTimeout(resizeMap, 100);
             if (tab === 'vision') fetchAndRenderCameraFeeds();
+            if (tab === 'interception') fetchAndRenderSOS();
         }
         window.switchTab = switchTab;
 
         let lastAssessment = null;
 
         function initWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/gm`;
+            const wsUrl = `ws://localhost:8000/ws/gm`;
             console.log(`Connecting to GM WebSocket at ${wsUrl}`);
             
             ws = new WebSocket(wsUrl);
@@ -867,7 +924,6 @@
                         if (data.log) updateTacticalLog(data.log);
                         
                         if (data.assessment) {
-                            // Assign new object reference
                             lastAssessment = Object.assign({}, data.assessment);
                             hotelState = Object.assign({}, data.assessment.hotel_data || {});
                             
@@ -878,6 +934,14 @@
                             if (twin) twin.updateState(data.assessment);
                         }
                         if (data.camera) updateVisionAI(data.camera);
+                    } else if (data.type === 'GUEST_SOS' || data.type === 'CRISIS_DETECTED') {
+                        // Immediate reaction to new SOS events
+                        console.log("ALERT: New Crisis/SOS detected!");
+                        if (data.data && data.data.room) {
+                            showGlobalNotification(`EMERGENCY: SOS in Room ${data.data.room}`);
+                        }
+                        // Instant refresh of the SOS log
+                        fetchAndRenderSOS();
                     } else if (data.type === 'PEOPLE_UPDATE') {
                         // Optional: Handle live people movement if needed for 2D map
                     }
@@ -1067,7 +1131,7 @@
 
         async function completeTask(staffId) {
             try {
-                const res = await fetch(`/staff/${staffId}/complete`, { method: 'POST' });
+                const res = await fetch(`http://localhost:8000/staff/${staffId}/complete`, { method: 'POST' });
                 if (res.ok) {
                     console.log(`Task completed by ${staffId}`);
                 }
@@ -1111,17 +1175,20 @@
 
         function updateSOSLog(sosEvents) {
             const sosLog = document.getElementById('sos-log');
+            const sosLogFull = document.getElementById('sos-log-full');
             if (!sosLog) return;
             if (!sosEvents || sosEvents.length === 0) {
                 sosLog.innerHTML = '<p class="text-[9px] italic text-slate-600 text-center py-4">Monitoring...</p>';
+                if (sosLogFull) sosLogFull.innerHTML = '<p class="text-[11px] italic text-slate-600 text-center py-20">Monitoring encrypted guest channels...</p>';
                 return;
             }
 
-            sosLog.innerHTML = sosEvents.map(sos => {
+            const html = sosEvents.map(sos => {
                 const langColor = sos.detected_language === 'English' ? 'text-slate-400' : 'text-blue-400';
                 const sentimentIcon = sos.sentiment === 'Critical' ? '🔴' : '🟡';
+                const timeStr = sos.time.includes('T') ? sos.time.split('T')[1].substring(0, 8) : sos.time;
                 return `
-                    <div class="glass-panel p-4 border border-white/5 bg-slate-900/50">
+                    <div class="glass-panel p-4 border border-white/5 bg-slate-900/50 hover:border-accent/30 transition-all cursor-pointer group" onclick="showSOSRationale('${sos.room}', '${(sos.reasoning || '').replace(/'/g, "\\'")}')">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-[9px] font-bold text-white uppercase">${sos.guest} // RM ${sos.room}</span>
                             <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-blue-900/30 ${langColor}">
@@ -1138,23 +1205,53 @@
                             <p class="text-[10px] font-bold text-white bg-white/5 p-2 rounded">
                                 ${sos.translation || sos.original_message}
                             </p>
-                            ${sos.reasoning ? `
-                                <div class="bg-blue-500/10 p-2 rounded border border-blue-500/20">
-                                    <p class="text-[8px] text-blue-400 font-black uppercase mb-1">✨ Gemma Reasoning</p>
-                                    <p class="text-[9px] text-slate-300 leading-tight">${sos.reasoning}</p>
-                                </div>
-                            ` : ''}
                         </div>
-                        <p class="text-[7px] text-slate-600 mt-2 text-right uppercase tracking-widest">${sos.time.split('T')[1].substring(0, 8)}</p>
+                        <p class="text-[7px] text-slate-600 mt-2 text-right uppercase tracking-widest">${timeStr}</p>
                     </div>
                 `;
             }).join('');
+
+            sosLog.innerHTML = html;
+            if (sosLogFull) {
+                sosLogFull.innerHTML = html;
+                
+                // Update stats
+                document.getElementById('sos-total-count').innerText = sosEvents.length;
+                document.getElementById('sos-critical-count').innerText = sosEvents.filter(s => s.sentiment === 'Critical').length;
+                
+                const langs = [...new Set(sosEvents.map(s => s.detected_language))];
+                document.getElementById('sos-languages').innerHTML = langs.map(l => `<span class="px-2 py-1 bg-blue-500/20 text-blue-400 text-[8px] font-black rounded uppercase">${l}</span>`).join('');
+            }
+        }
+
+        function showSOSRationale(room, rationale) {
+            const el = document.getElementById('sos-rationale-feed');
+            if (!el) return;
+            el.innerHTML = `
+                <div class="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 animate-in slide-in-from-right duration-300">
+                    <p class="text-[9px] text-emerald-400 font-black uppercase mb-2">Analysis for Room ${room}</p>
+                    <p class="text-[11px] text-white leading-relaxed font-medium">${rationale || 'No detailed reasoning available for this intercept.'}</p>
+                    <div class="mt-4 pt-4 border-t border-white/5">
+                        <p class="text-[8px] text-slate-500 uppercase font-bold">Recommended Action</p>
+                        <p class="text-[10px] text-accent font-bold mt-1">Priority rescue deployment initiated.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function fetchAndRenderSOS() {
+            try {
+                const res = await fetch('http://localhost:8000/ai/sos_history');
+                if (!res.ok) return;
+                const data = await res.json();
+                updateSOSLog(data.recent_sos);
+            } catch(e) { console.warn('SOS fetch failed:', e); }
         }
 
         // Fetch camera feeds from REST API (fallback when WebSocket camera data is missing)
         async function fetchAndRenderCameraFeeds() {
             try {
-                const res = await fetch('/camera/feeds');
+                const res = await fetch('http://localhost:8000/camera/feeds');
                 if (!res.ok) return;
                 const data = await res.json();
                 updateVisionAI(data);
@@ -1484,10 +1581,125 @@
             });
         }
 
+        // --- VOICE ASSISTANT & COMMAND HUB ---
+        let recognition;
+        let isListening = false;
+
+        function toggleVoiceAssistant() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Speech recognition is not supported in this browser.");
+                return;
+            }
+
+            if (!recognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    isListening = true;
+                    document.getElementById('btn-voice').classList.add('active', 'animate-pulse');
+                    showGlobalNotification("Aegis Voice Assistant Active... Listening");
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = Array.from(event.results)
+                        .map(result => result[0])
+                        .map(result => result.transcript)
+                        .join('');
+                    
+                    if (event.results[0].isFinal) {
+                        processVoiceCommand(transcript.toLowerCase());
+                    }
+                };
+
+                recognition.onend = () => {
+                    isListening = false;
+                    document.getElementById('btn-voice').classList.remove('active', 'animate-pulse');
+                };
+
+                recognition.onerror = (err) => {
+                    console.error("Voice Recognition Error:", err);
+                    isListening = false;
+                    document.getElementById('btn-voice').classList.remove('active', 'animate-pulse');
+                };
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        function processVoiceCommand(cmd) {
+            console.log("Processing Command:", cmd);
+            
+            if (cmd.includes("floor")) {
+                const floors = ["zero", "one", "two", "three", "four", "ground"];
+                let found = false;
+                floors.forEach((f, i) => {
+                    if (cmd.includes(f) || cmd.includes(i.toString())) {
+                        const target = f === "ground" || f === "zero" ? 0 : i;
+                        setMapFloor(target);
+                        speakResponse(`Switching to floor ${target}`);
+                        found = true;
+                    }
+                });
+            } else if (cmd.includes("vision") || cmd.includes("camera")) {
+                switchTab('vision');
+                speakResponse("Opening tactical camera feeds.");
+            } else if (cmd.includes("dashboard") || cmd.includes("hub")) {
+                switchTab('dashboard');
+                speakResponse("Returning to primary dashboard.");
+            } else if (cmd.includes("staff") || cmd.includes("operator")) {
+                switchTab('staff');
+                speakResponse("Viewing staff tactical assignments.");
+            } else if (cmd.includes("lstm") || cmd.includes("forecast")) {
+                switchTab('forecasting');
+                speakResponse("Loading predictive LSTM models.");
+            } else {
+                speakResponse("Command not recognized. Try saying 'Show floor two' or 'Switch to vision'.");
+            }
+        }
+
+        function speakResponse(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.1;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+            showGlobalNotification(text);
+        }
+
+        function showGlobalNotification(msg) {
+            let container = document.getElementById('notification-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'notification-container';
+                container.className = 'fixed top-8 right-8 z-[100] flex flex-col gap-4 pointer-events-none';
+                document.body.appendChild(container);
+            }
+
+            const el = document.createElement('div');
+            el.className = 'bg-indigo-600 text-white px-6 py-4 rounded-xl shadow-2xl border border-indigo-400 flex items-center gap-4 animate-bounce-in pointer-events-auto';
+            el.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">🤖</div>
+                <div>
+                    <p class="text-[10px] font-black uppercase opacity-80">Aegis Intelligence</p>
+                    <p class="text-sm font-bold">${msg}</p>
+                </div>
+            `;
+            container.appendChild(el);
+            setTimeout(() => {
+                el.classList.add('opacity-0', '-translate-y-4');
+                setTimeout(() => el.remove(), 500);
+            }, 5000);
+        }
+
         window.onload = () => {
             init();
-            
-            // Re-render once layout is settled
             setTimeout(() => {
                 if (twin) twin.onResize();
             }, 500);

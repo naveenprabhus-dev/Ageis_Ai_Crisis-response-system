@@ -95,7 +95,7 @@ class AiBrain:
 
         # ── Step 6: Staff dispatch ────────────────────────────────────
         staff_assignments, self_rescuing, rescue_decisions = self._dispatch_staff(
-            evac_pred, zone_scores, smoke_pred, staff, hotel
+            evac_pred, zone_scores, smoke_pred, fire_pred, staff, hotel
         )
 
         # ── Step 7: Build CrisisAssessment ────────────────────────────
@@ -275,7 +275,7 @@ class AiBrain:
         return {"locations": locations, "per_floor": per_floor, "count": len(locations)}
 
     def _normalize_sos(self, events: List[Dict]) -> List[Dict]:
-        return events[-10:]  # last 10 SOS events
+        return events[:10]  # first 10 (newest) SOS events
 
     # ──────────────────────────────────────────────────────────────────
     #  CRISIS CLASSIFIER
@@ -303,24 +303,25 @@ class AiBrain:
         for floor in range(0, FLOORS):
             # Vision score: fire on this floor?
             floor_fire_zones = [z for z in vis.get("fire_zones", []) if int(z[:-2]) == floor]
-            vis_score = (len(floor_fire_zones) * 20) + (vis.get("fire_confidence", 0.0) * 15) if floor_fire_zones else 0.0
+            # localized fire impact
+            vis_score = (len(floor_fire_zones) * 15) + (vis.get("fire_confidence", 0.0) * 10) if floor_fire_zones else 0.0
 
             # LSTM fire ETA score: shorter ETA = higher risk
             floor_zone_ids = [f"{floor}{r:02d}" for r in range(1, ROOMS_PER_FLOOR + 1)]
             min_eta = min((fire_etas[z] for z in floor_zone_ids if z in fire_etas), default=99)
             
-            if min_eta < 3:   fire_eta_score = 40.0 # Extreme immediate danger
-            elif min_eta < 7: fire_eta_score = 25.0
-            elif min_eta < 15: fire_eta_score = 10.0
+            if min_eta < 2:   fire_eta_score = 15.0 # Immediate threat
+            elif min_eta < 5: fire_eta_score = 10.0 # High threat
+            elif min_eta < 10: fire_eta_score = 5.0
             else:              fire_eta_score = 0.0
 
             # LSTM smoke score (reduced weight unless density is very high)
             smoke_density = smoke_levels.get(floor, 0.0)
-            smoke_score = (smoke_density * 15.0) if smoke_density > 0.4 else (smoke_density * 5.0)
+            smoke_score = (smoke_density * 10.0) if smoke_density > 0.5 else (smoke_density * 3.0)
 
             # Occupancy score
             occ = hotel["occupancy"].get(floor, 0)
-            occ_score = min(5.0, occ * 0.5)
+            occ_score = min(3.0, occ * 0.3)
 
             raw = vis_score + fire_eta_score + smoke_score + occ_score + weather_score
             scores[floor] = int(min(100, max(0, raw)))
@@ -356,7 +357,7 @@ class AiBrain:
     # ──────────────────────────────────────────────────────────────────
     def _dispatch_staff(
         self, evac_pred: Dict, zone_scores: Dict[int, int], smoke_pred: Dict,
-        staff: Dict, hotel: Dict
+        fire_pred: Dict, staff: Dict, hotel: Dict
     ) -> tuple:
         assignments: Dict[str, str] = {}
         self_rescuing: List[str] = []
@@ -394,7 +395,11 @@ class AiBrain:
             
             # Use LLM Decision Engine for modality assignment
             guest_profile = hotel["guests"].get(task["room"], {})
-            mode, rationale = llm_engine.make_decision(guest_profile, score)
+            # Pass floor risk score AND room status for more granular decision
+            fire_etas = fire_pred.get("etas", {})
+            room_fire_eta = fire_etas.get(task["room"], 99.0)
+            
+            mode, rationale = llm_engine.make_decision(guest_profile, score, room_fire_eta)
             
             fire_presence = score >= 80
             smoke_level = smoke_pred.get("floor_smoke_levels", {}).get(f, 0)

@@ -345,6 +345,16 @@
         let lastVoiceAlert = "";
         let staffRecognition;
         let isStaffListening = false;
+        let lastHazardCount = 0;
+        let lastMissionUrgency = "";
+        
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:8000' 
+            : `${window.location.protocol}//${window.location.host}`;
+        
+        const WS_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'ws://localhost:8000/ws'
+            : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
         
         const canvas = document.getElementById('tactical-canvas');
         const ctx = canvas.getContext('2d');
@@ -541,9 +551,7 @@
         // --- CORE LOGIC ---
 
         function connectWS() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const host = window.location.host;
-            ws = new WebSocket(`${protocol}//${host}/ws/staff`);
+            ws = new WebSocket(`${WS_BASE}/staff`);
 
             ws.onopen = () => {
                 document.getElementById('connection-status').innerText = 'Neural Link Active';
@@ -571,7 +579,7 @@
 
         async function fetchTask() {
             try {
-                const res = await fetch(`/staff/${STAFF_ID}/next_task`);
+                const res = await fetch(`${API_BASE}/staff/${STAFF_ID}/next_task`);
                 const data = await res.json();
                 if (data.id) {
                     currentTask = data;
@@ -607,12 +615,17 @@
                 document.getElementById('staff-eta').innerText = tactical.staff_eta + 'm';
                 document.getElementById('fire-eta').innerText = tactical.fire_eta + 'm';
                 
-                if (tactical.is_critical) {
-                    document.getElementById('task-urgency-pill').innerText = "URGENT: FIRE OVERTAKING";
-                    document.getElementById('active-mission-card').classList.add('pulse-red');
-                    voiceAlert("Urgent: Fire spread exceeds rescue velocity. Accelerate to Room " + currentTask.room);
-                } else {
-                    document.getElementById('active-mission-card').classList.remove('pulse-red');
+                const urgencyText = tactical.is_critical ? "URGENT: FIRE OVERTAKING" : (currentTask ? "MISSION: ACTIVE" : "NO ACTIVE MISSION");
+                
+                if (lastMissionUrgency !== urgencyText) {
+                    lastMissionUrgency = urgencyText;
+                    document.getElementById('task-urgency-pill').innerText = urgencyText;
+                    if (tactical.is_critical) {
+                        document.getElementById('active-mission-card').classList.add('pulse-red');
+                        voiceAlert("Urgent: Fire spread exceeds rescue velocity. Accelerate to Room " + currentTask.room);
+                    } else {
+                        document.getElementById('active-mission-card').classList.remove('pulse-red');
+                    }
                 }
             }
 
@@ -626,25 +639,28 @@
                 }
             }
 
-            // Update Hazard List
-            const hazardList = document.getElementById('hazard-list');
-            hazardList.innerHTML = '';
+            // Update Hazard List only if count changed or every few cycles to keep it fresh but not flickering
             const fires = assessment.fire_spread.actual_fire_zones || [];
-            fires.forEach(zone => {
-                const div = document.createElement('div');
-                div.className = "hazard-alert glass-panel p-3 border-l-2 border-danger flex justify-between items-center";
-                div.innerHTML = `
-                    <div>
-                        <p class="text-[10px] font-black text-danger uppercase">Fire Detected</p>
-                        <p class="text-xs font-bold text-white">Zone ${zone}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[8px] text-slate-500 uppercase font-bold">Severity</p>
-                        <p class="text-[10px] font-black text-danger">EXTREME</p>
-                    </div>
-                `;
-                hazardList.appendChild(div);
-            });
+            if (fires.length !== lastHazardCount) {
+                lastHazardCount = fires.length;
+                const hazardList = document.getElementById('hazard-list');
+                hazardList.innerHTML = '';
+                fires.forEach(zone => {
+                    const div = document.createElement('div');
+                    div.className = "hazard-alert glass-panel p-3 border-l-2 border-danger flex justify-between items-center";
+                    div.innerHTML = `
+                        <div>
+                            <p class="text-[10px] font-black text-danger uppercase">Fire Detected</p>
+                            <p class="text-xs font-bold text-white">Zone ${zone}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Severity</p>
+                            <p class="text-[10px] font-black text-danger">EXTREME</p>
+                        </div>
+                    `;
+                    hazardList.appendChild(div);
+                });
+            }
 
             // Removed old SOS update block since we now use real-time chat
         }
@@ -682,7 +698,7 @@
             appendChatMessage(text, 'staff');
             
             try {
-                await fetch('/comms/staff_to_guest', {
+                await fetch(`${API_BASE}/comms/staff_to_guest`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -707,7 +723,7 @@
         async function executeConfirmReached() {
             closeReachedModal();
             try {
-                const res = await fetch(`/staff/${STAFF_ID}/reached`, { method: 'POST' });
+                const res = await fetch(`${API_BASE}/staff/${STAFF_ID}/reached`, { method: 'POST' });
                 if (res.ok) {
                     document.getElementById('reached-step').classList.add('hidden');
                     document.getElementById('complete-step').classList.remove('hidden');
@@ -728,7 +744,7 @@
             document.getElementById('complete-step').querySelector('button').innerText = "SYNCHRONIZING...";
             
             try {
-                await fetch(`/staff/${STAFF_ID}/complete`, { method: 'POST' });
+                await fetch(`${API_BASE}/staff/${STAFF_ID}/complete`, { method: 'POST' });
                 
                 // Show Popup
                 const popup = document.getElementById('rescue-popup');

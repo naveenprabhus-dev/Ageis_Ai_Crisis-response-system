@@ -98,7 +98,8 @@ class TaskEngine:
                     "guest":     guest_data["name"] if guest_data else None,
                     "language":  guest_data.get("language", "English") if guest_data else "English",
                     "status":    guest_data.get("status", "SAFE") if guest_data else "SAFE",
-                    "is_high_alert": is_high_alert
+                    "is_high_alert": is_high_alert,
+                    "is_vulnerable": is_vulnerable
                 }
         return layout
 
@@ -127,9 +128,12 @@ class TaskEngine:
     def _create_crisis(self, room: Dict) -> Dict:
         room["status"] = "CRISIS"
         
-        # Deterministic impact based on high alert status
+        # Corrected impact logic: High alert rooms have LESS time (3 mins)
         is_high_alert = room.get("is_high_alert", False)
-        impact = 15 if is_high_alert else 5
+        is_vulnerable = room.get("is_vulnerable", False)
+        
+        # High alert/Vulnerable = 5 mins, Regular = 15 mins
+        impact = 5 if (is_high_alert or is_vulnerable) else 15
         
         # Deterministic Task ID based on room to prevent duplicates or random IDs
         task_id = f"TASK_{room['room_id']}_{self.cycle if hasattr(self, 'cycle') else 1}"
@@ -143,7 +147,7 @@ class TaskEngine:
             "predicted_impact_mins":  impact,
             "must_reach_mins":        max(1, impact - 2),
             "status":                 "PENDING",
-            "priority":               "RED" if impact < 5 else "YELLOW",
+            "priority":               "RED" if impact <= 5 else "YELLOW",
             "created_at":             datetime.now().isoformat(),
         }
         self.tasks.append(task)
@@ -157,17 +161,11 @@ class TaskEngine:
             floor_data[room_id] = {
                 "room_id": room_id, "floor": floor,
                 "room_num": int(room_id[1:]) if room_id[1:].isdigit() else 0,
-                "guest": guest_name, "language": "English", "status": "SAFE"
+                "guest": guest_name, "language": "English", "status": "SAFE",
+                "is_high_alert": False, "is_vulnerable": False
             }
             self.total_occupied += 1
         room = floor_data[room_id]
-        if room["status"] == "CRISIS":
-            existing = next(
-                (t for t in self.tasks if t["room"] == room_id and t["status"] in ("PENDING", "IN_PROGRESS")),
-                None
-            )
-            if existing:
-                return existing
         room["guest"] = guest_name
         room["language"] = detected_language
         sos = {
@@ -182,6 +180,15 @@ class TaskEngine:
             "time": datetime.now().isoformat()
         }
         self.recent_sos.appendleft(sos)
+
+        if room["status"] == "CRISIS":
+            existing = next(
+                (t for t in self.tasks if t["room"] == room_id and t["status"] in ("PENDING", "IN_PROGRESS")),
+                None
+            )
+            if existing:
+                return existing
+
         return self._create_crisis(room)
 
     # ──────────────────────────────────────────────────────────────────
