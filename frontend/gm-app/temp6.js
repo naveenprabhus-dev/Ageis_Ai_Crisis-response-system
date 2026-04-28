@@ -332,8 +332,11 @@
         let lastAssessment = null;
 
         function initWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket("wss://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app/ws/gm");
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const BASE_URL = isLocal ? "http://localhost:8000" : "https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app";
+            const WS_URL = BASE_URL.replace("http", "ws");
+
+            ws = new WebSocket(`${WS_URL}/ws/gm`);
             ws.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 if (data.type === 'SYNC' || data.type === 'AI_ASSESSMENT') {
@@ -516,7 +519,7 @@
 
         async function completeTask(staffId) {
             try {
-                const res = await fetch(`https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app/staff/${staffId}/complete, { method: 'POST' });
+            const res = await fetch(`https://aegis-ai-crisis-response-system-89387172468.asia-south2.run.app/staff/${staffId}/complete`, {method: 'POST'});
                 if (res.ok) {
                     console.log(`Task completed by ${staffId}`);
                 }
