@@ -62,5 +62,3 @@ In large buildings like hotels, emergency response is often:
 
 ---
 
-## 🧩 System Architecture
-
